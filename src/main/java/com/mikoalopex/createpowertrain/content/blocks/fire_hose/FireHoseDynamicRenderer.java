@@ -1,0 +1,526 @@
+package com.mikoalopex.createpowertrain.content.blocks.fire_hose;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.mikoalopex.createpowertrain.Config;
+import com.mikoalopex.createpowertrain.api.fire_hose.FireHoseAppearances;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+
+import org.joml.Matrix3d;
+import org.joml.Quaterniond;
+import org.joml.Vector3d;
+import org.joml.Vector3dc;
+
+/**
+ * Renders hose segments whose endpoints are represented by moving structures
+ * rather than two static block entities.
+ */
+public final class FireHoseDynamicRenderer {
+	private static final float TUBE_WIDTH = 8.0f;
+	private static final Vector3d UP = new Vector3d(0, 1, 0);
+	private static final Map<Integer, DynamicHose> DYNAMIC_HOSES = new HashMap<>();
+	private static final Map<ResourceLocation, RenderType> HOSE_RENDER_TYPES = new HashMap<>();
+
+	private FireHoseDynamicRenderer() {
+	}
+
+	public static void submit(int key, Vec3 start, Vec3 end, Direction startFacing, Direction endFacing,
+			ResourceLocation appearance, long expiresAt) {
+		DYNAMIC_HOSES.put(key, new DynamicHose(start, end, startFacing, endFacing, appearance, expiresAt));
+	}
+
+	public static void render(RenderLevelStageEvent event) {
+		if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS)
+			return;
+		Minecraft minecraft = Minecraft.getInstance();
+		if (minecraft.level == null || DYNAMIC_HOSES.isEmpty())
+			return;
+
+		long gameTime = minecraft.level.getGameTime();
+		DYNAMIC_HOSES.entrySet().removeIf(entry -> gameTime > entry.getValue().expiresAt());
+		if (DYNAMIC_HOSES.isEmpty())
+			return;
+
+		MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
+		PoseStack poseStack = event.getPoseStack();
+		Camera camera = event.getCamera();
+		Vec3 cameraPos = camera.getPosition();
+
+		poseStack.pushPose();
+		poseStack.translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
+		for (DynamicHose hose : DYNAMIC_HOSES.values()) {
+			RenderType renderType = hoseRenderType(FireHoseAppearances.get(hose.appearance()));
+			if (renderType == null)
+				continue;
+			VertexConsumer buffer = bufferSource.getBuffer(renderType);
+			renderHose(poseStack, buffer, hose, sampleLight(minecraft.level, hose));
+		}
+		poseStack.popPose();
+		for (RenderType renderType : HOSE_RENDER_TYPES.values())
+			bufferSource.endBatch(renderType);
+	}
+
+	private static RenderType createHoseRenderType(ResourceLocation texture) {
+		return RenderType.entityCutoutNoCull(texture);
+	}
+
+	private static RenderType hoseRenderType(FireHoseAppearances.Entry appearance) {
+		ResourceLocation texture = appearance.hoseTexture();
+		if (texture == null)
+			return null;
+		return HOSE_RENDER_TYPES.computeIfAbsent(texture, FireHoseDynamicRenderer::createHoseRenderType);
+	}
+
+	private static int sampleLight(Level level, DynamicHose hose) {
+		Vec3 center = hose.start().add(hose.end()).scale(0.5);
+		return LevelRenderer.getLightColor(level, BlockPos.containing(center));
+	}
+
+	private static void renderHose(PoseStack poseStack, VertexConsumer buffer, DynamicHose hose, int light) {
+		renderSplineHose(poseStack, buffer, hose.start(), hose.end(), hose.startFacing(), hose.endFacing(), light, true);
+	}
+
+	public static void renderSplineHose(PoseStack poseStack, VertexConsumer buffer, Vec3 startPos, Vec3 endPos,
+			Direction startFacing, Direction endFacing, int light, boolean applyStressColor) {
+		renderSplineHose(poseStack, buffer, startPos, endPos, startFacing, endFacing, light,
+			applyStressColor, TUBE_WIDTH);
+	}
+
+	public static void renderSplineHose(PoseStack poseStack, VertexConsumer buffer, Vec3 startPos, Vec3 endPos,
+			Direction startFacing, Direction endFacing, int light, boolean applyStressColor, float tubeWidth) {
+		renderSplineHose(poseStack, buffer, startPos, endPos,
+			Vec3.atLowerCornerOf(startFacing.getNormal()),
+			Vec3.atLowerCornerOf(endFacing.getNormal()),
+			light, applyStressColor, tubeWidth);
+	}
+
+	public static void renderSplineHose(PoseStack poseStack, VertexConsumer buffer, Vec3 startPos, Vec3 endPos,
+			Vec3 startNormal, Vec3 endNormal, int light, boolean applyStressColor, float tubeWidth) {
+		renderSplineHose(poseStack, buffer, startPos, endPos, startNormal, endNormal, light,
+			applyStressColor, tubeWidth, tubeWidth);
+	}
+
+	public static void renderSplineHose(PoseStack poseStack, VertexConsumer buffer, Vec3 startPos, Vec3 endPos,
+			Vec3 startNormal, Vec3 endNormal, int light, boolean applyStressColor, float tubeWidth, float uvTubeWidth) {
+		renderSplineHose(poseStack, buffer, startPos, endPos, startNormal, endNormal, null, light,
+			applyStressColor, tubeWidth, uvTubeWidth);
+	}
+
+	public static void renderSplineHose(PoseStack poseStack, VertexConsumer buffer, Vec3 startPos, Vec3 endPos,
+			Vec3 startNormal, Vec3 endNormal, Vec3 endUp, int light, boolean applyStressColor,
+			float tubeWidth, float uvTubeWidth) {
+		Vector3d start = vector(startPos);
+		Vector3d end = vector(endPos);
+		Vector3d normalA = vector(startNormal).normalize();
+		Vector3d normalB = vector(endNormal).normalize();
+		double distance = start.distance(end);
+		if (distance < 0.01)
+			return;
+
+		List<SplinePoint> splinePoints = generateSpline(start, end, normalA, normalB, distance / 5.0 + 0.25);
+		if (splinePoints.size() < 2)
+			return;
+
+		int color = applyStressColor ? stressColor(distance) : 0xFFFFFFFF;
+		Matrix3d matrix = initialFrame(normalA, end.sub(start, new Vector3d()), splinePoints.get(0).normal());
+		double totalLength = 0.0;
+		for (int i = 0; i < splinePoints.size() - 1; i++) {
+			SplinePoint point = splinePoints.get(i);
+			SplinePoint next = splinePoints.get(i + 1);
+			totalLength += point.point().distance(next.point());
+			matrix.rotateLocal(rotationBetween(point.normal(), next.normal()));
+		}
+
+		if (totalLength <= 0)
+			return;
+
+		double twist = endUp == null
+			? snappedTwist(matrix)
+			: -signedAngleAround(matrix.getColumn(0, new Vector3d()), vector(endUp), normalB);
+		double runningLength = 0.0;
+
+		matrix = initialFrame(normalA, end.sub(start, new Vector3d()), splinePoints.get(0).normal());
+		for (int i = 0; i < splinePoints.size() - 1; i++) {
+			SplinePoint point = splinePoints.get(i);
+			SplinePoint next = splinePoints.get(i + 1);
+			Vector3dc up = matrix.getColumn(0, new Vector3d());
+			matrix.rotateLocal(rotationBetween(point.normal(), next.normal()));
+			matrix.rotateY(-twist / (splinePoints.size() - 1));
+			Vector3dc nextUp = matrix.getColumn(0, new Vector3d());
+			double length = point.point().distance(next.point());
+
+			renderSegment(poseStack, point.normal(), next.normal(), up, nextUp,
+				point.point(), next.point(),
+				(float) runningLength, (float) (runningLength + length),
+				light, color, buffer, tubeWidth, uvTubeWidth);
+
+			runningLength += length;
+		}
+	}
+
+	/** Both end frames follow the model, rather than choosing roll from the curve direction. */
+	public static List<AttachedPoint> attachedSpline(Vec3 startPos, Vec3 endPos, Vec3 startNormal, Vec3 endNormal,
+			Vec3 startUp, Vec3 endUp) {
+		return attachedSpline(startPos, endPos, startNormal, endNormal, startUp, endUp, false);
+	}
+
+	public static List<AttachedPoint> attachedSpline(Vec3 startPos, Vec3 endPos, Vec3 startNormal, Vec3 endNormal,
+			Vec3 startUp, Vec3 endUp, boolean shortTransition) {
+		Vector3d start = vector(startPos);
+		Vector3d end = vector(endPos);
+		Vector3d normalA = vector(startNormal).normalize();
+		Vector3d normalB = vector(endNormal).normalize();
+		double distance = start.distance(end);
+		if (distance < 1e-5)
+			return List.of();
+
+		// A short straight collar keeps the first bend outside the attachment face.
+		double collar = Math.min(1.0 / 16, distance / 4);
+		Vector3d curveStart = start.fma(collar, normalA, new Vector3d());
+		Vector3d curveEnd = end.fma(collar, normalB, new Vector3d());
+		double influence = shortTransition ? Math.min(distance / 3, 0.125) : curveStart.distance(curveEnd) / 5 + 0.25;
+		List<SplinePoint> curve = generateSpline(curveStart, curveEnd, normalA, normalB, influence);
+		List<SplinePoint> points = new ObjectArrayList<>();
+		points.add(new SplinePoint(start, normalA));
+		Vector3d controlA = curveStart.fma(influence, normalA, new Vector3d());
+		Vector3d controlB = curveEnd.fma(influence, normalB, new Vector3d());
+		for (int i = 0; i < curve.size(); i++) {
+			double t = (double) i / (curve.size() - 1);
+			Vector3d tangent = controlA.sub(curveStart, new Vector3d()).mul(3 * (1 - t) * (1 - t))
+				.fma(6 * (1 - t) * t, controlB.sub(controlA, new Vector3d()))
+				.fma(3 * t * t, curveEnd.sub(controlB, new Vector3d()));
+			if (tangent.lengthSquared() < 1e-12)
+				tangent.set(points.getLast().normal());
+			points.add(new SplinePoint(curve.get(i).point(), tangent.normalize()));
+		}
+		points.add(new SplinePoint(end, normalB.negate(new Vector3d())));
+
+		List<Vector3d> transported = new ObjectArrayList<>();
+		Vector3d up = projectOntoPlane(vector(startUp), normalA).normalize();
+		transported.add(new Vector3d(up));
+		double[] lengths = new double[points.size()];
+		for (int i = 1; i < points.size(); i++) {
+			SplinePoint previous = points.get(i - 1);
+			SplinePoint point = points.get(i);
+			rotationBetween(previous.normal(), point.normal()).transform(up);
+			up = projectOntoPlane(up, point.normal()).normalize();
+			transported.add(new Vector3d(up));
+			lengths[i] = lengths[i - 1] + previous.point().distance(point.point());
+		}
+		double twist = signedAngleAround(up, vector(endUp), points.getLast().normal());
+		// A square repeats every quarter-turn. Avoid unnecessary turns between matching corners.
+		twist -= Math.rint(twist / (Math.PI / 2)) * (Math.PI / 2);
+		double curveLength = Math.max(1e-8, lengths[lengths.length - 2] - lengths[1]);
+		List<AttachedPoint> result = new ObjectArrayList<>();
+		for (int i = 0; i < points.size(); i++) {
+			SplinePoint point = points.get(i);
+			double fraction = Mth.clamp((lengths[i] - lengths[1]) / curveLength, 0, 1);
+			Vector3d frameUp = new Quaterniond().rotationAxis(twist * fraction,
+				point.normal().x(), point.normal().y(), point.normal().z())
+				.transform(transported.get(i), new Vector3d()).normalize();
+			result.add(new AttachedPoint(point.point(), point.normal(), frameUp, lengths[i]));
+		}
+		return result;
+	}
+
+	static void renderAttachedSpline(PoseStack poseStack, VertexConsumer buffer, List<AttachedPoint> points, int light) {
+		for (int i = 0; i + 1 < points.size(); i++) {
+			AttachedPoint a = points.get(i);
+			AttachedPoint b = points.get(i + 1);
+			renderSegment(poseStack, a.normal(), b.normal(), a.up(), b.up(), a.point(), b.point(),
+				(float) a.length(), (float) b.length(), light, 0xFFFFFFFF, buffer, TUBE_WIDTH, TUBE_WIDTH);
+		}
+	}
+
+	private static double snappedTwist(Matrix3d matrix) {
+		Quaterniond orientation = matrix.getNormalizedRotation(new Quaterniond());
+		if (Math.abs(UP.dot(new Vector3d(orientation.x(), orientation.y(), orientation.z()))) < 1e-5)
+			orientation.rotateLocalX(Math.PI);
+
+		double halfPi = Math.PI / 2.0;
+		double quarterPi = halfPi / 2.0;
+		double d = UP.dot(new Vector3d(orientation.x(), orientation.y(), orientation.z()));
+		double deg = 2.0 * Math.atan2(-d, orientation.w());
+		return Math.floor((deg + quarterPi) / halfPi) * halfPi - deg;
+	}
+
+	private static double signedAngleAround(Vector3dc from, Vector3dc to, Vector3dc axis) {
+		Vector3d normalizedAxis = new Vector3d(axis).normalize();
+		Vector3d projectedFrom = projectOntoPlane(from, normalizedAxis);
+		Vector3d projectedTo = projectOntoPlane(to, normalizedAxis);
+		if (projectedFrom.lengthSquared() < 1e-8 || projectedTo.lengthSquared() < 1e-8)
+			return 0.0;
+
+		projectedFrom.normalize();
+		projectedTo.normalize();
+		double sin = normalizedAxis.dot(projectedFrom.cross(projectedTo, new Vector3d()));
+		double cos = projectedFrom.dot(projectedTo);
+		return Math.atan2(sin, cos);
+	}
+
+	private static Vector3d projectOntoPlane(Vector3dc vector, Vector3dc normal) {
+		return new Vector3d(vector).sub(new Vector3d(normal).mul(vector.dot(normal)));
+	}
+
+	private static Matrix3d initialFrame(Vector3dc facingNormal, Vector3dc directionToHose, Vector3dc firstNormal) {
+		Vector3d up = vector(getUpDirection(facingNormal, directionToHose));
+		return new Matrix3d(up, firstNormal, up.cross(firstNormal, new Vector3d()));
+	}
+
+	private static int stressColor(double distance) {
+		double snapDistance = Config.hoseMaxLength * Config.hoseSnapMultiplier;
+		double flashingStart = snapDistance * 0.85;
+		if (distance <= flashingStart)
+			return 0xFFFFFFFF;
+
+		Minecraft minecraft = Minecraft.getInstance();
+		double renderTime = minecraft.player == null ? minecraft.level.getGameTime() : minecraft.player.tickCount;
+		float alpha = Mth.clamp((float) ((distance - flashingStart) / (snapDistance - flashingStart)), 0.0f, 1.0f) * 0.3f;
+		alpha = alpha * Mth.lerp(0.25f, (float) Math.sin(renderTime / 3.0f) * 0.5f + 0.5f, 1.0f);
+		int r = 255;
+		int g = Mth.clamp((int) (255 * (1.0f - alpha * 2)), 0, 255);
+		int b = Mth.clamp((int) (255 * (1.0f - alpha * 2)), 0, 255);
+		return 0xFF000000 | (r << 16) | (g << 8) | b;
+	}
+
+	private static Vector3d vector(Vec3i vec) {
+		return new Vector3d(vec.getX(), vec.getY(), vec.getZ());
+	}
+
+	private static Vector3d vector(Vec3 vec) {
+		return new Vector3d(vec.x, vec.y, vec.z);
+	}
+
+	private static Quaterniond rotationBetween(Vector3dc from, Vector3dc to) {
+		Vector3d normalizedFrom = new Vector3d(from);
+		Vector3d normalizedTo = new Vector3d(to);
+		if (normalizedFrom.lengthSquared() < 1e-8 || normalizedTo.lengthSquared() < 1e-8)
+			return new Quaterniond();
+		normalizedFrom.normalize();
+		normalizedTo.normalize();
+		return new Quaterniond().rotationTo(normalizedFrom, normalizedTo);
+	}
+
+	private static Vec3 getUpDirection(Vector3dc facingNormal, Vector3dc directionToHose) {
+		Vector3d normal = new Vector3d(facingNormal).normalize();
+		double dot = directionToHose.dot(normal);
+		Vector3d dir = directionToHose.sub(normal.mul(dot, new Vector3d()), new Vector3d());
+
+		if (dir.lengthSquared() < 1e-6) {
+			Vector3d fallback = Math.abs(normal.y()) > 0.9 ? new Vector3d(0, 0, -1) : new Vector3d(0, 1, 0);
+			dir = fallback.sub(normal.mul(fallback.dot(normal), new Vector3d()), new Vector3d());
+		}
+		dir.normalize().negate();
+		return new Vec3(dir.x, dir.y, dir.z);
+	}
+
+	static List<SplinePoint> generateSpline(Vector3dc pointA, Vector3dc pointB,
+			Vector3dc normalA, Vector3dc normalB, double controlPointLength) {
+		List<SplinePoint> points = new ObjectArrayList<>();
+		Vector3d controlA = pointA.fma(controlPointLength, normalA, new Vector3d());
+		Vector3d controlB = pointB.fma(controlPointLength, normalB, new Vector3d());
+		Vector3d segmentA = new Vector3d();
+		Vector3d segmentB = new Vector3d();
+		Vector3d segmentC = new Vector3d();
+		double len = pointA.distance(pointB);
+		int count = Mth.clamp(Mth.ceil(len), 5, 8);
+		for (int i = 0; i <= count; i++) {
+			double t = (double) i / count;
+			pointA.lerp(controlA, t, segmentA);
+			controlA.lerp(controlB, t, segmentB);
+			controlB.lerp(pointB, t, segmentC);
+
+			Vector3d point = new Vector3d(segmentA)
+				.lerp(segmentB, t)
+				.lerp(segmentB.lerp(segmentC, t, new Vector3d()), t);
+			Vector3d normal = new Vector3d();
+			if (points.isEmpty())
+				normal.set(normalA);
+			else if (points.size() == count)
+				normal.set(normalB).negate();
+			else
+				point.sub(points.get(points.size() - 1).point(), normal).normalize();
+			points.add(new SplinePoint(point, normal));
+		}
+		return points;
+	}
+
+	public static void renderSegment(PoseStack poseStack, Vector3dc startDirection, Vector3dc endDirection,
+			Vector3dc inputStartUp, Vector3dc inputEndUp, Vector3dc startPos, Vector3dc endPos,
+			float uvStart, float uvEnd, int light, int color, VertexConsumer buffer, float tubeWidth, float uvTubeWidth) {
+		renderSegment(poseStack, startDirection, endDirection, inputStartUp, inputEndUp, startPos, endPos,
+			uvStart, uvEnd, null, light, color, buffer, tubeWidth, uvTubeWidth);
+	}
+
+	/** Each face advances by its drawn length, including the outside of a tight bend. */
+	public static void renderSurfaceSegment(PoseStack poseStack, Vector3dc startDirection, Vector3dc endDirection,
+			Vector3dc inputStartUp, Vector3dc inputEndUp, Vector3dc startPos, Vector3dc endPos,
+			float[] phases, int light, int color, VertexConsumer buffer, float tubeWidth, float uvTubeWidth) {
+		renderSegment(poseStack, startDirection, endDirection, inputStartUp, inputEndUp, startPos, endPos,
+			0, 0, phases, light, color, buffer, tubeWidth, uvTubeWidth);
+	}
+
+	private static void renderSegment(PoseStack poseStack, Vector3dc startDirection, Vector3dc endDirection,
+			Vector3dc inputStartUp, Vector3dc inputEndUp, Vector3dc startPos, Vector3dc endPos,
+			float uvStart, float uvEnd, float[] phases, int light, int color, VertexConsumer buffer, float tubeWidth, float uvTubeWidth) {
+		Vector3d startLeft = inputStartUp.cross(startDirection, new Vector3d()).normalize();
+		Vector3d endLeft = inputEndUp.cross(endDirection, new Vector3d()).normalize();
+		double scale = tubeWidth / 16.0 / 2.0;
+		Vector3d startUp = inputStartUp.mul(scale, new Vector3d());
+		Vector3d endUp = inputEndUp.mul(scale, new Vector3d());
+		startLeft.mul(scale);
+		endLeft.mul(scale);
+
+		float u0 = HoseTexture.u0(uvTubeWidth);
+		float u1 = HoseTexture.u1(uvTubeWidth);
+		Vector3d startDown = startUp.negate(new Vector3d());
+		Vector3d endDown = endUp.negate(new Vector3d());
+		Vector3d startRight = startLeft.negate(new Vector3d());
+		Vector3d endRight = endLeft.negate(new Vector3d());
+
+		surfaceQuad(poseStack, buffer, color, startDown, endDown, light, phases, 0,
+			startPos.add(startLeft, new Vector3d()).sub(startUp),
+			endPos.add(endLeft, new Vector3d()).sub(endUp),
+			endPos.sub(endLeft, new Vector3d()).sub(endUp),
+			startPos.sub(startLeft, new Vector3d()).sub(startUp),
+			u0, uvStart, u1, uvEnd);
+		surfaceQuad(poseStack, buffer, color, startUp, endUp, light, phases, 1,
+			startPos.sub(startLeft, new Vector3d()).add(startUp),
+			endPos.sub(endLeft, new Vector3d()).add(endUp),
+			endPos.add(endLeft, new Vector3d()).add(endUp),
+			startPos.add(startLeft, new Vector3d()).add(startUp),
+			u0, uvStart, u1, uvEnd);
+		surfaceQuad(poseStack, buffer, color, startRight, endRight, light, phases, 2,
+			startPos.sub(startLeft, new Vector3d()).sub(startUp),
+			endPos.sub(endLeft, new Vector3d()).sub(endUp),
+			endPos.sub(endLeft, new Vector3d()).add(endUp),
+			startPos.sub(startLeft, new Vector3d()).add(startUp),
+			u0, uvStart, u1, uvEnd);
+		surfaceQuad(poseStack, buffer, color, startLeft, endLeft, light, phases, 3,
+			startPos.add(startLeft, new Vector3d()).add(startUp),
+			endPos.add(endLeft, new Vector3d()).add(endUp),
+			endPos.add(endLeft, new Vector3d()).sub(endUp),
+			startPos.add(startLeft, new Vector3d()).sub(startUp),
+			u0, uvStart, u1, uvEnd);
+	}
+
+	/** Optional per-surface material routing for a four-sided physical hose. */
+	public static float[] surfaceLengths(Vector3dc startDirection, Vector3dc endDirection,
+			Vector3dc startUp, Vector3dc endUp, Vector3dc start, Vector3dc end, float width) {
+		Vector3d leftA = startUp.cross(startDirection, new Vector3d()).normalize();
+		Vector3d leftB = endUp.cross(endDirection, new Vector3d()).normalize();
+		double scale = width / 32.0;
+		int[][] signs = {{1, -1}, {-1, -1}, {-1, 1}, {1, 1}};
+		double[] edges = new double[4];
+		for (int i = 0; i < 4; i++) {
+			var a = start.add(leftA.mul(signs[i][0] * scale, new Vector3d()), new Vector3d()).add(startUp.mul(signs[i][1] * scale, new Vector3d()));
+			var b = end.add(leftB.mul(signs[i][0] * scale, new Vector3d()), new Vector3d()).add(endUp.mul(signs[i][1] * scale, new Vector3d()));
+			edges[i] = a.distance(b);
+		}
+		return new float[] {(float) ((edges[0] + edges[1]) / 2), (float) ((edges[2] + edges[3]) / 2),
+			(float) ((edges[1] + edges[2]) / 2), (float) ((edges[3] + edges[0]) / 2)};
+	}
+
+	public interface SurfaceConsumer extends VertexConsumer {
+		void selectSurface(int face);
+		default boolean cropCopycatBase() { return false; }
+		default boolean centreCopycatTexture() { return false; }
+		default void beginSurfaceRun(float[] lengths) {}
+		default float surfaceRunLength() { return 0; }
+	}
+
+	private static void splitCopycat(SurfaceConsumer surface, float start, float end,
+			com.mikoalopex.createpowertrain.content.blocks.physical_hose.CopycatHoseTexture.Tile output) {
+		if (surface.surfaceRunLength() > 0)
+			com.mikoalopex.createpowertrain.content.blocks.physical_hose.CopycatHoseTexture.splitRun(start, end, surface.surfaceRunLength(), output);
+		else com.mikoalopex.createpowertrain.content.blocks.physical_hose.CopycatHoseTexture.split(start, end, output);
+	}
+
+	private static void surfaceQuad(PoseStack poseStack, VertexConsumer buffer, int color,
+			Vector3dc startNormal, Vector3dc endNormal, int light, float[] phases, int face,
+			Vector3dc a, Vector3dc b, Vector3dc c, Vector3dc d, float u0, float v0, float u1, float v1) {
+		if (buffer instanceof SurfaceConsumer surfaces) surfaces.selectSurface(face);
+		if (phases != null) {
+			v0 = phases[face];
+			v1 = v0 + (float) ((a.distance(b) + d.distance(c)) / 2);
+			phases[face] = v1;
+		}
+		quad(poseStack, buffer, color, startNormal, endNormal, light, a, b, c, d, u0, v0, u1, v1);
+	}
+
+	private static void quad(PoseStack poseStack, VertexConsumer buffer, int color,
+			Vector3dc startNormal, Vector3dc endNormal, int light,
+			Vector3dc a, Vector3dc b, Vector3dc c, Vector3dc d, float u0, float v0, float u1, float v1) {
+		if (buffer instanceof SurfaceConsumer surface && surface.cropCopycatBase()) {
+			Vector3d startMiddle = a.lerp(d, 0.5, new Vector3d());
+			Vector3d endMiddle = b.lerp(c, 0.5, new Vector3d());
+			float halfWidth = (u1 - u0) / 2;
+			splitCopycat(surface, v0, v1, (from, to, low, high) -> {
+				Vector3d n0 = startNormal.lerp(endNormal, from, new Vector3d());
+				Vector3d n1 = startNormal.lerp(endNormal, to, new Vector3d());
+				// Exchange the two cropped halves: the texture border belongs on the
+				// outside of the tube, not at the centre seam between the half-quads.
+				vert(poseStack, buffer, a.lerp(b, from, new Vector3d()), color, 1, low, n0, light);
+				vert(poseStack, buffer, a.lerp(b, to, new Vector3d()), color, 1, high, n1, light);
+				vert(poseStack, buffer, startMiddle.lerp(endMiddle, to, new Vector3d()), color, 1 - halfWidth, high, n1, light);
+				vert(poseStack, buffer, startMiddle.lerp(endMiddle, from, new Vector3d()), color, 1 - halfWidth, low, n0, light);
+				vert(poseStack, buffer, startMiddle.lerp(endMiddle, from, new Vector3d()), color, halfWidth, low, n0, light);
+				vert(poseStack, buffer, startMiddle.lerp(endMiddle, to, new Vector3d()), color, halfWidth, high, n1, light);
+				vert(poseStack, buffer, d.lerp(c, to, new Vector3d()), color, 0, high, n1, light);
+				vert(poseStack, buffer, d.lerp(c, from, new Vector3d()), color, 0, low, n0, light);
+			});
+			return;
+		}
+		HoseTexture.Slice emit = (from, to, low, high) -> {
+			Vector3d n0 = startNormal.lerp(endNormal, from, new Vector3d());
+			Vector3d n1 = startNormal.lerp(endNormal, to, new Vector3d());
+			vert(poseStack, buffer, a.lerp(b, from, new Vector3d()), color, u0, low, n0, light);
+			vert(poseStack, buffer, a.lerp(b, to, new Vector3d()), color, u0, high, n1, light);
+			vert(poseStack, buffer, d.lerp(c, to, new Vector3d()), color, u1, high, n1, light);
+			vert(poseStack, buffer, d.lerp(c, from, new Vector3d()), color, u1, low, n0, light);
+		};
+		if (buffer instanceof SurfaceConsumer surface && surface.centreCopycatTexture())
+			splitCopycat(surface, v0, v1, emit::accept);
+		else HoseTexture.split(v0, v1, emit);
+	}
+
+	private static void vert(PoseStack poseStack, VertexConsumer buffer, Vector3dc pos, int color,
+			float u, float v, Vector3dc normal, int light) {
+		Vector3d normalizedNormal = normal.normalize(new Vector3d());
+		buffer.addVertex(poseStack.last().pose(), (float) pos.x(), (float) pos.y(), (float) pos.z())
+			.setColor(color)
+			.setUv(u, v)
+			.setOverlay(OverlayTexture.NO_OVERLAY)
+			.setLight(light)
+			.setNormal(poseStack.last(), (float) normalizedNormal.x(), (float) normalizedNormal.y(), (float) normalizedNormal.z());
+	}
+
+	private record DynamicHose(Vec3 start, Vec3 end, Direction startFacing, Direction endFacing,
+			ResourceLocation appearance, long expiresAt) {
+	}
+
+	record SplinePoint(Vector3dc point, Vector3dc normal) {
+	}
+
+	public record AttachedPoint(Vector3dc point, Vector3dc normal, Vector3dc up, double length) {
+	}
+}

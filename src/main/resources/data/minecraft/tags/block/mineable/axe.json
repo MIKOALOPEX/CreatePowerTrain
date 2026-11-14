@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "createpowertrain:rocker",
+    "createpowertrain:copycat_multidirectional_trapdoor",
+    "createpowertrain:copycat_short_sliding_door",
+    "createpowertrain:copycat_short_folding_door"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "AB ",
+    " E ",
+    "   "
+  ],
+  "key": {
+    "A": {
+      "item": "minecraft:iron_nugget"
+    },
+    "B": {
+      "item": "create:iron_sheet"
+    },
+    "E": {
+      "item": "create:industrial_iron_block"
+    }
+  },
+  "result": {
+    "id": "createpowertrain:rope_hook",
+    "count": 1
+  }
+}

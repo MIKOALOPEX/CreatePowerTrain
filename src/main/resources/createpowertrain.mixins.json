@@ -1,0 +1,35 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.mikoalopex.createpowertrain.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "BallCouplingNetworkMixin",
+    "BallCouplingKineticSaveMixin",
+    "BallCouplingConflictMixin",
+    "RopeItemMixin",
+    "PhysicalHoseBreakParticlesMixin",
+    "SmartRopeTrackingMixin",
+    "RopeLatchPhysicsAccess",
+    "RopeLatchBoundsMixin",
+    "RopeLatchWinchMixin",
+    "RopeLatchSlideMixin",
+    "LegacyRopeCaptureMixin",
+    "LegacyCouplingKineticsMixin"
+  ],
+  "client": [
+    "client.PhysicalHoseInteractionMixin",
+    "client.SmartRopeDataPacketMixin",
+    "client.SmartRopeShearsMixin",
+    "client.SmartRopeStoppedPacketMixin",
+    "client.CreativeSectionScreenMixin",
+    "client.CreativeSectionTabMixin",
+    "client.CreativeSectionMenuAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

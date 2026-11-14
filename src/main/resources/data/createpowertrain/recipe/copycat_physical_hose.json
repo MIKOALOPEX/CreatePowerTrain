@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "ingredients": [
+    {
+      "item": "createpowertrain:physical_fire_hose"
+    },
+    {
+      "item": "create:zinc_ingot"
+    }
+  ],
+  "result": {
+    "id": "createpowertrain:copycat_physical_hose",
+    "count": 1
+  }
+}

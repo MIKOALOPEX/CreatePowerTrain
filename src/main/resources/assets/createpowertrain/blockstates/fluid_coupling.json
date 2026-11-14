@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "createpowertrain:block/fluid_coupling/base_item" }
+  }
+}

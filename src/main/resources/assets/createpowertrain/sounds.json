@@ -1,0 +1,47 @@
+{
+  "pneumatic_hammer_charge": {
+    "subtitle": "subtitles.createpowertrain.pneumatic_hammer_charge",
+    "sounds": [
+      "createpowertrain:pneumatic_hammer_charge"
+    ]
+  },
+  "nozzle_spray": {
+    "subtitle": "subtitles.createpowertrain.nozzle_spray",
+    "sounds": [
+      "createpowertrain:nozzle_spray"
+    ]
+  },
+  "fire_extinguisher_spray": {
+    "subtitle": "subtitles.createpowertrain.fire_extinguisher_spray",
+    "sounds": [
+      {
+        "name": "createpowertrain:fire_extinguisher_spray",
+        "stream": true
+      }
+    ]
+  },
+  "hydraulic_ram_waterflyoff": {
+    "subtitle": "subtitles.createpowertrain.hydraulic_ram_waterflyoff",
+    "sounds": [
+      "createpowertrain:waterflyoff"
+    ]
+  },
+  "hydraulic_ram_click": {
+    "subtitle": "subtitles.createpowertrain.hydraulic_ram_click",
+    "sounds": [
+      "createpowertrain:ramclick"
+    ]
+  },
+  "fire_hydrant_cabinet_open": {
+    "subtitle": "subtitles.createpowertrain.fire_hydrant_cabinet",
+    "sounds": [
+      "createpowertrain:fire_hydrant_cabinet_open"
+    ]
+  },
+  "fire_hydrant_cabinet_close": {
+    "subtitle": "subtitles.createpowertrain.fire_hydrant_cabinet",
+    "sounds": [
+      "createpowertrain:fire_hydrant_cabinet_close"
+    ]
+  }
+}

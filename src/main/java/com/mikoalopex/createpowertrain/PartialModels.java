@@ -1,0 +1,87 @@
+package com.mikoalopex.createpowertrain;
+
+import dev.engine_room.flywheel.lib.model.baked.PartialModel;
+import net.minecraft.client.resources.model.ModelResourceLocation;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.client.event.ModelEvent;
+
+public class PartialModels {
+	public static final PartialModel ROPE_HOOK_MOVE = block("rope_latch/move");
+	public static final PartialModel ROPE_HOOK_BODY = block("rope_latch/block");
+	public static final PartialModel TAIL_HOOK_BASE = block("tail_hook/base");
+	public static final PartialModel TAIL_HOOK_ROD = block("tail_hook/rod");
+	public static final PartialModel HOSE_SETPOINT_Y = block("fire_hose/setpoint_y");
+	public static final PartialModel HOSE_SETPOINT_Z = block("fire_hose/setpoint_z");
+	public static final PartialModel HOSE_BRACKET_METAL = PartialModel.of(ResourceLocation.fromNamespaceAndPath("create", "block/bracket/pipe/ground_metal"));
+	public static final PartialModel HOSE_BRACKET_WOOD = PartialModel.of(ResourceLocation.fromNamespaceAndPath("create", "block/bracket/pipe/ground_wooden"));
+
+	public static final PartialModel HIGH_PRESSURE_PUMP_COG = block("high_pressure_pump_cog");
+	public static final PartialModel MULTIPURPOSE_BACKTANK_COG = block("multipurpose_backtank_cog");
+	public static final PartialModel MULTIPURPOSE_BACKTANK_SHAFT = block("multipurpose_backtank_shaft");
+	public static final PartialModel HYDRAULIC_RAM_MOVE = block("hydraulic_ram/move");
+	public static final PartialModel EXTENSION_LADDER_NOMOVE = block("extension_ladder/nomove");
+	public static final PartialModel EXTENSION_LADDER_ONLYMOVE = block("extension_ladder/onlymove");
+	public static final PartialModel EXTENSION_LADDER_ROPE = block("extension_ladder/rope");
+	public static final PartialModel FLUID_FLOW_METER_DIAL = block("fluid_flow_meter/dial");
+	public static final PartialModel FLUID_FLOW_METER_GREEN_POINTER_EAST = block("fluid_flow_meter/green_pointer_east");
+	public static final PartialModel FLUID_FLOW_METER_GREEN_POINTER_WEST = block("fluid_flow_meter/green_pointer_west");
+	public static final PartialModel FLUID_FLOW_METER_PURPLE_POINTER_EAST = block("fluid_flow_meter/purple_pointer_east");
+	public static final PartialModel FLUID_FLOW_METER_PURPLE_POINTER_WEST = block("fluid_flow_meter/purple_pointer_west");
+	public static final PartialModel PNEUMATIC_HAMMER_BASE = item("pneumatic_hammer/base");
+	public static final PartialModel PNEUMATIC_HAMMER_COG = item("pneumatic_hammer/cog");
+	public static final PartialModel FIRE_HYDRANT_CABINET_DOOR = block("fire_hydrant_cabinet/door");
+	public static final PartialModel FIRE_HYDRANT_CABINET_HOSE = block("fire_hydrant_cabinet/hose");
+	public static final PartialModel FIRE_HYDRANT_CABINET_CONE = block("fire_hydrant_cabinet/cone");
+	public static final PartialModel FIRE_HYDRANT_CABINET_FLAT = block("fire_hydrant_cabinet/flat");
+	public static final PartialModel TRAFFIC_CONE = block("traffic_cone");
+	public static final PartialModel HANDHELD_NOZZLE_BASE = item("handheld_nozzle_controller/base");
+	public static final PartialModel HANDHELD_NOZZLE_HANDLE = item("handheld_nozzle_controller/handle");
+	public static final PartialModel HANDHELD_NOZZLE_COG = item("handheld_nozzle_controller/cog");
+	public static final PartialModel HANDHELD_NOZZLE_CONE = item("handheld_nozzle_controller/cone");
+	public static final PartialModel HANDHELD_NOZZLE_FLAT = item("handheld_nozzle_controller/flat");
+
+	private static PartialModel block(String path) {
+		return PartialModel.of(ResourceLocation.fromNamespaceAndPath(CreatePowertrain.MODID, "block/" + path));
+	}
+
+	private static PartialModel item(String path) {
+		return PartialModel.of(ResourceLocation.fromNamespaceAndPath(CreatePowertrain.MODID, "item/" + path));
+	}
+
+	public static void registerAdditional(ModelEvent.RegisterAdditional event) {
+		com.mikoalopex.createpowertrain.content.blocks.physical_hose.PhysicalHoseRenderer.models(event);
+		com.mikoalopex.createpowertrain.content.kinetics.coupling.BallCouplingRenderer.registerModels(event);
+		init();
+		event.register(ModelResourceLocation.standalone(HOSE_SETPOINT_Y.modelLocation()));
+		event.register(ModelResourceLocation.standalone(HOSE_SETPOINT_Z.modelLocation()));
+		event.register(ModelResourceLocation.standalone(HOSE_BRACKET_METAL.modelLocation()));
+		event.register(ModelResourceLocation.standalone(HOSE_BRACKET_WOOD.modelLocation()));
+		event.register(ModelResourceLocation.standalone(HIGH_PRESSURE_PUMP_COG.modelLocation()));
+		event.register(ModelResourceLocation.standalone(MULTIPURPOSE_BACKTANK_COG.modelLocation()));
+		event.register(ModelResourceLocation.standalone(MULTIPURPOSE_BACKTANK_SHAFT.modelLocation()));
+		event.register(ModelResourceLocation.standalone(HYDRAULIC_RAM_MOVE.modelLocation()));
+		event.register(ModelResourceLocation.standalone(EXTENSION_LADDER_NOMOVE.modelLocation()));
+		event.register(ModelResourceLocation.standalone(EXTENSION_LADDER_ONLYMOVE.modelLocation()));
+		event.register(ModelResourceLocation.standalone(EXTENSION_LADDER_ROPE.modelLocation()));
+		event.register(ModelResourceLocation.standalone(FLUID_FLOW_METER_DIAL.modelLocation()));
+		event.register(ModelResourceLocation.standalone(FLUID_FLOW_METER_GREEN_POINTER_EAST.modelLocation()));
+		event.register(ModelResourceLocation.standalone(FLUID_FLOW_METER_GREEN_POINTER_WEST.modelLocation()));
+		event.register(ModelResourceLocation.standalone(FLUID_FLOW_METER_PURPLE_POINTER_EAST.modelLocation()));
+		event.register(ModelResourceLocation.standalone(FLUID_FLOW_METER_PURPLE_POINTER_WEST.modelLocation()));
+		event.register(ModelResourceLocation.standalone(PNEUMATIC_HAMMER_BASE.modelLocation()));
+		event.register(ModelResourceLocation.standalone(PNEUMATIC_HAMMER_COG.modelLocation()));
+		event.register(ModelResourceLocation.standalone(FIRE_HYDRANT_CABINET_DOOR.modelLocation()));
+		event.register(ModelResourceLocation.standalone(FIRE_HYDRANT_CABINET_HOSE.modelLocation()));
+		event.register(ModelResourceLocation.standalone(FIRE_HYDRANT_CABINET_CONE.modelLocation()));
+		event.register(ModelResourceLocation.standalone(FIRE_HYDRANT_CABINET_FLAT.modelLocation()));
+		event.register(ModelResourceLocation.standalone(TRAFFIC_CONE.modelLocation()));
+		event.register(ModelResourceLocation.standalone(HANDHELD_NOZZLE_BASE.modelLocation()));
+		event.register(ModelResourceLocation.standalone(HANDHELD_NOZZLE_HANDLE.modelLocation()));
+		event.register(ModelResourceLocation.standalone(HANDHELD_NOZZLE_COG.modelLocation()));
+		event.register(ModelResourceLocation.standalone(HANDHELD_NOZZLE_CONE.modelLocation()));
+		event.register(ModelResourceLocation.standalone(HANDHELD_NOZZLE_FLAT.modelLocation()));
+	}
+
+	public static void init() {
+	}
+}

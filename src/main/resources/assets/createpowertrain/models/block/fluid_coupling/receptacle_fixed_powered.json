@@ -1,0 +1,4 @@
+{
+  "parent": "createpowertrain:block/fluid_coupling/receptacle_fixed",
+  "textures": { "1": "createpowertrain:block/fluid_coupling/receptacle_c" }
+}

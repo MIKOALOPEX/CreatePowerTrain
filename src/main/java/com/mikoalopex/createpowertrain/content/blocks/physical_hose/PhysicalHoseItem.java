@@ -1,0 +1,93 @@
+package com.mikoalopex.createpowertrain.content.blocks.physical_hose;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.item.context.UseOnContext;
+
+/**
+ * Places physical hose heads and connects matching, unoccupied endpoints.
+ */
+public final class PhysicalHoseItem extends BlockItem {
+    static final String SELECTION = "PhysicalHoseSelection";
+    public PhysicalHoseItem(PhysicalHoseBlock block, Properties properties) { super(block, properties); }
+
+    @Override public InteractionResult place(BlockPlaceContext context) {
+        
+        CompoundTag data = context.getItemInHand().getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        InteractionResult result = super.place(context);
+        // Sneaking is vanilla adjacent placement, not endpoint selection or connection.
+        if (context.getPlayer() != null && context.getPlayer().isShiftKeyDown()) return result;
+        if (result.consumesAction() && !context.getLevel().isClientSide && context.getPlayer() != null
+                && context.getLevel().getBlockEntity(context.getClickedPos()) instanceof PhysicalHoseBlockEntity hose) {
+            CompoundTag selected = data.getCompound(SELECTION);
+            BlockPos firstPos = BlockPos.of(selected.getLong("Pos"));
+            if (selected.hasUUID("Id") && selected.getString("Dimension").equals(context.getLevel().dimension().location().toString())
+                    && context.getLevel().hasChunkAt(firstPos)
+                    && context.getLevel().getBlockEntity(firstPos) instanceof PhysicalHoseBlockEntity first
+                    && first.getFireHoseEndpointId().equals(selected.getUUID("Id")))
+                hose.setSize(first.getBlockState().getValue(PhysicalHoseBlock.SIZE));
+            select(context, hose, data);
+        }
+        return result;
+    }
+
+    @Override public InteractionResult useOn(UseOnContext context) {
+        var level = context.getLevel();
+        var player = context.getPlayer();
+        if (player == null) return InteractionResult.PASS;
+        if (player.isShiftKeyDown()) {
+            var data = context.getItemInHand().getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+            if (!data.contains(SELECTION)) return super.useOn(context);
+            if (!level.isClientSide) {
+                data.remove(SELECTION);
+                context.getItemInHand().set(DataComponents.CUSTOM_DATA, CustomData.of(data));
+                player.displayClientMessage(Component.translatable("createpowertrain.physical_hose.cleared"), true);
+            }
+            return InteractionResult.SUCCESS;
+        }
+        
+        if (!(level.getBlockEntity(context.getClickedPos()) instanceof PhysicalHoseBlockEntity target))
+            return super.useOn(context);
+        if (level.isClientSide) return InteractionResult.SUCCESS;
+        select(context, target, context.getItemInHand().getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag());
+        return InteractionResult.SUCCESS;
+    }
+
+    private void select(UseOnContext context, PhysicalHoseBlockEntity target, CompoundTag data) {
+        var level = context.getLevel();
+        var player = context.getPlayer();
+        var stack = context.getItemInHand();
+        String message;
+        if (player.isShiftKeyDown()) {
+            data.remove(SELECTION);
+            message = "cleared";
+        } else if (target.attached()) {
+            message = "invalid";
+        } else if (!data.contains(SELECTION)) {
+            CompoundTag selected = new CompoundTag();
+            selected.putLong("Pos", target.getBlockPos().asLong());
+            selected.putUUID("Id", target.getFireHoseEndpointId());
+            selected.putString("Dimension", level.dimension().location().toString());
+            data.put(SELECTION, selected);
+            message = "selected";
+        } else {
+            CompoundTag selected = data.getCompound(SELECTION);
+            BlockPos pos = BlockPos.of(selected.getLong("Pos"));
+            boolean connected = selected.getString("Dimension").equals(level.dimension().location().toString())
+                && selected.hasUUID("Id") && level.hasChunkAt(pos)
+                && level.getBlockEntity(pos) instanceof PhysicalHoseBlockEntity first
+                && first.getFireHoseEndpointId().equals(selected.getUUID("Id")) && first.connectPhysical(target);
+            data.remove(SELECTION);
+            message = connected ? "connected" : "invalid";
+        }
+        if (!stack.isEmpty()) stack.set(DataComponents.CUSTOM_DATA, CustomData.of(data));
+        if (!message.equals("selected") && !message.equals("connected"))
+            player.displayClientMessage(Component.translatable("createpowertrain.physical_hose." + message), true);
+    }
+}

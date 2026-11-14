@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "   ",
+    " E ",
+    " H "
+  ],
+  "key": {
+    "E": {
+      "item": "simulated:rope_connector"
+    },
+    "H": {
+      "item": "create:brass_sheet"
+    }
+  },
+  "result": {
+    "id": "createpowertrain:smart_rope_connector",
+    "count": 1
+  }
+}

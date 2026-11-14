@@ -1,0 +1,380 @@
+package com.mikoalopex.createpowertrain.integration.sable;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Predicate;
+
+import org.jetbrains.annotations.Nullable;
+
+import com.mikoalopex.createpowertrain.CreatePowertrain;
+import com.mikoalopex.createpowertrain.content.blocks.fire_hose.FireHoseBlock;
+import com.mikoalopex.createpowertrain.content.blocks.fire_hose.FireHoseBlockEntity;
+import com.mikoalopex.createpowertrain.content.blocks.fire_hose.HoseBracketBlock;
+import com.mikoalopex.createpowertrain.content.blocks.fire_hose.HoseBracketBlockEntity;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Position;
+import net.minecraft.core.Vec3i;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+
+public final class SableStructureCompat {
+
+    private static final StructureBackend BACKEND = loadBackend();
+
+    private SableStructureCompat() {
+    }
+
+    public static boolean available() {
+        return BACKEND != null;
+    }
+
+    public static double distance(Level level, BlockPos first, BlockPos second) {
+        return Math.sqrt(distanceSquared(level, Vec3.atCenterOf(first), Vec3.atCenterOf(second)));
+    }
+
+    public static FireHoseBlock createFireHoseBlock(BlockBehaviour.Properties properties) { return new SableFireHoseBlock(properties); }
+
+    public static FireHoseBlockEntity createFireHoseBlockEntity(BlockPos pos, BlockState state) { return new SableFireHoseBlockEntity(pos, state); }
+
+    public static HoseBracketBlock createHoseBracketBlock(BlockBehaviour.Properties properties) { return new SableHoseBracketBlock(properties); }
+
+    public static HoseBracketBlockEntity createHoseBracketBlockEntity(BlockPos pos, BlockState state) { return new SableHoseBracketBlockEntity(pos, state); }
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public static double distanceSquared(Level level, BlockPos first, BlockPos second) {
+        return distanceSquared(level, Vec3.atCenterOf(first), Vec3.atCenterOf(second));
+    }
+
+    public static double distanceSquared(Level level, Vec3 first, Vec3 second) {
+        if (level != null && BACKEND != null)
+            return BACKEND.distanceSquared(level, first, second);
+        return first.distanceToSqr(second);
+    }
+
+    /** Resolves the frame from an existing block, even when the target point lies outside it. */
+    public static Vec3 projectFromBlockToWorld(Level level, BlockPos reference, Vec3 localPos) {
+        if (level.isClientSide) return SableStructureClientCompat.projectFromBlockToWorld(level, reference, localPos);
+        return BACKEND == null ? localPos : BACKEND.projectFromBlockToWorld(level, reference, localPos);
+    }
+
+    public static Vec3 projectToWorld(Level level, Vec3 localPos) {
+        if (level != null && level.isClientSide)
+            return SableStructureClientCompat.projectToWorld(level, localPos);
+        if (level != null && BACKEND != null)
+            return BACKEND.projectToWorld(level, localPos);
+        return localPos;
+    }
+
+    public static Level worldLevel(BlockEntity owner) {
+        if (owner.getLevel() != null && BACKEND != null)
+            return BACKEND.worldLevel(owner);
+        return owner.getLevel();
+    }
+
+    public static Level worldLevel(Level level, BlockPos pos) {
+        if (level != null && level.isClientSide)
+            return SableStructureClientCompat.worldLevel(level, pos);
+        if (level != null && BACKEND != null)
+            return BACKEND.worldLevel(level, pos);
+        return level;
+    }
+
+    public static BlockPos worldBlockPos(BlockEntity owner) {
+        if (owner.getLevel() != null && BACKEND != null)
+            return BACKEND.worldBlockPos(owner);
+        return owner.getBlockPos();
+    }
+
+    public static Vec3 transformPositionToWorld(BlockEntity owner, Vec3 localPos) {
+        if (owner.getLevel() != null && owner.getLevel().isClientSide)
+            return SableStructureClientCompat.logicalPositionToWorld(owner, localPos);
+        if (owner.getLevel() != null && BACKEND != null)
+            return BACKEND.transformPositionToWorld(owner, localPos);
+        return localPos;
+    }
+
+    public static Vec3 transformNormalToWorld(BlockEntity owner, Vec3 localNormal) {
+        if (owner.getLevel() != null && owner.getLevel().isClientSide)
+            return SableStructureClientCompat.logicalNormalToWorld(owner, localNormal);
+        if (owner.getLevel() != null && BACKEND != null)
+            return BACKEND.transformNormalToWorld(owner, localNormal);
+        return localNormal;
+    }
+
+    public static Vec3 transformNormalToLocal(BlockEntity owner, Vec3 worldNormal) {
+        if (owner.getLevel() != null && owner.getLevel().isClientSide)
+            return SableStructureClientCompat.logicalNormalToLocal(owner, worldNormal);
+        if (owner.getLevel() != null && BACKEND != null)
+            return BACKEND.transformNormalToLocal(owner, worldNormal);
+        return worldNormal;
+    }
+
+    public static Vec3 transformNormalToLocal(Level level, BlockPos pos, Vec3 worldNormal) {
+        if (level != null && BACKEND != null)
+            return BACKEND.transformNormalToLocal(level, pos, worldNormal);
+        return worldNormal;
+    }
+
+    public static boolean isInSubLevel(BlockEntity owner) {
+        if (owner.getLevel() != null && owner.getLevel().isClientSide)
+            return SableStructureClientCompat.isInSubLevel(owner);
+        return owner.getLevel() != null && BACKEND != null && BACKEND.isInSubLevel(owner);
+    }
+
+    public static boolean hasCollisionAtWorld(BlockEntity owner, Vec3 worldPosition) {
+        if (owner.getLevel() != null && BACKEND != null)
+            return BACKEND.hasCollisionAtWorld(owner, worldPosition);
+        if (owner.getLevel() == null)
+            return false;
+        BlockPos pos = BlockPos.containing(worldPosition);
+        return !owner.getLevel().getBlockState(pos).getCollisionShape(owner.getLevel(), pos).isEmpty();
+    }
+
+    /** Caches loaded collision results for one synchronous batch, not across ticks. */
+    public static Predicate<Vec3> collisionQuery(BlockEntity owner, AABB bounds) {
+        if (owner.getLevel() == null)
+            return point -> false;
+        if (BACKEND != null)
+            return BACKEND.collisionQuery(owner, bounds);
+        return loadedCollisionQuery(owner.getLevel());
+    }
+
+    static Predicate<Vec3> loadedCollisionQuery(Level level) {
+        Map<Long, LevelChunk> chunks = new HashMap<>();
+        Map<BlockPos, Boolean> collisions = new HashMap<>();
+        return point -> {
+            BlockPos pos = BlockPos.containing(point);
+            if (level.isOutsideBuildHeight(pos))
+                return false;
+            return collisions.computeIfAbsent(pos, key -> {
+                long chunkKey = ChunkPos.asLong(pos);
+                if (!chunks.containsKey(chunkKey))
+                    chunks.put(chunkKey, level.getChunkSource().getChunk(pos.getX() >> 4, pos.getZ() >> 4, false));
+                var chunk = chunks.get(chunkKey);
+                return chunk != null && !chunk.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
+            });
+        };
+    }
+
+    public static List<SubLevelProjection> projectWorldPositionsToSubLevels(Level level, List<Vec3> worldPositions) {
+        if (level != null && level.isClientSide)
+            return SableStructureClientCompat.projectWorldPositionsToSubLevels(level, worldPositions);
+        if (level != null && BACKEND != null)
+            return BACKEND.projectWorldPositionsToSubLevels(level, worldPositions);
+        return Collections.emptyList();
+    }
+
+    public static List<SubLevelProjection> projectWorldPositionsToIntersectingSubLevels(Level level,
+                                                                                        List<Vec3> worldPositions) {
+        if (level != null && level.isClientSide)
+            return SableStructureClientCompat.projectWorldPositionsToIntersectingSubLevels(level, worldPositions);
+        if (level != null && BACKEND != null)
+            return BACKEND.projectWorldPositionsToIntersectingSubLevels(level, worldPositions);
+        return Collections.emptyList();
+    }
+
+    /** Selects nearby structures while enclosing the padded local bounds at any rotation. */
+    public static List<SubLevelProjection> projectProcessingPositions(Level level, List<Vec3> positions,
+                                                                     double localPadding) {
+        if (positions.isEmpty())
+            return List.of();
+        AABB bounds = new AABB(positions.get(0), positions.get(0));
+        for (Vec3 point : positions)
+            bounds = bounds.minmax(new AABB(point, point));
+        Vec3 center = bounds.getCenter();
+        double radius = 0;
+        for (Vec3 point : positions)
+            radius = Math.max(radius, point.distanceTo(center));
+        // Each local AABB axis is within radius; its padded corners can be sqrt(3) farther away.
+        double extent = Math.sqrt(3) * (radius + localPadding);
+        List<Vec3> query = new ArrayList<>(positions);
+        query.add(center.add(extent, extent, extent));
+        query.add(center.subtract(extent, extent, extent));
+        List<SubLevelProjection> result = new ArrayList<>();
+        for (SubLevelProjection projection : projectWorldPositionsToIntersectingSubLevels(level, query))
+            result.add(new SubLevelProjection(projection.id(), projection.level(),
+                List.copyOf(projection.positions().subList(0, positions.size()))));
+        return result;
+    }
+
+    public static boolean hasFirePoleNearEntity(Level level, AABB entityBox, List<Vec3> worldSamples,
+                                                double radiusSqr) {
+        return level != null && BACKEND != null
+            && BACKEND.hasFirePoleNearEntity(level, entityBox, worldSamples, radiusSqr);
+    }
+
+    public static void notifyBlockChanged(BlockEntity owner) {
+        if (owner.getLevel() != null && BACKEND != null)
+            BACKEND.notifyBlockChanged(owner);
+    }
+
+    public static void notifyBlockChanged(Level level, BlockPos pos, BlockState state) {
+        if (level != null && BACKEND != null)
+            BACKEND.notifyBlockChanged(level, pos, state);
+    }
+
+    @Nullable
+    public static UUID containingSubLevelId(BlockEntity owner) {
+        if (owner.getLevel() != null && BACKEND != null)
+            return BACKEND.containingSubLevelId(owner);
+        return null;
+    }
+
+    @Nullable
+    public static UUID containingSubLevelId(Level level, BlockPos pos) {
+        if (level != null && BACKEND != null)
+            return BACKEND.containingSubLevelId(level, pos);
+        return null;
+    }
+
+    public static Vec3 partnerCenterInOwnerSpace(BlockEntity owner, BlockPos partnerPos) {
+        if (owner.getLevel() != null && BACKEND != null)
+            return BACKEND.partnerCenterInOwnerSpace(owner, partnerPos);
+        return Vec3.atCenterOf(partnerPos);
+    }
+
+    public static void writeLinkedBlock(CompoundTag tag, String posTag, String subLevelTag,
+                                        BlockPos pos, @Nullable UUID subLevelId) {
+        if (BACKEND != null && BACKEND.writeLinkedBlock(tag, posTag, subLevelTag, pos, subLevelId))
+            return;
+        if (subLevelId != null)
+            tag.putUUID(subLevelTag, subLevelId);
+        tag.putLong(posTag, pos.asLong());
+    }
+
+    public static LinkedBlockRef readLinkedBlock(CompoundTag tag, String posTag, String subLevelTag) {
+        if (BACKEND != null) {
+            LinkedBlockRef mapped = BACKEND.readLinkedBlock(tag, posTag, subLevelTag);
+            if (mapped != null)
+                return mapped;
+        }
+
+        UUID subLevelId = tag.hasUUID(subLevelTag) ? tag.getUUID(subLevelTag) : null;
+        BlockPos pos = tag.contains(posTag) ? BlockPos.of(tag.getLong(posTag)) : null;
+        return new LinkedBlockRef(pos, subLevelId);
+    }
+
+    private static StructureBackend loadBackend() {
+        try {
+            ClassLoader loader = SableStructureCompat.class.getClassLoader();
+            if (!hasSableBackendApi(loader)) throw new IllegalStateException("Required Sable API unavailable");
+            return (StructureBackend) Class.forName("com.mikoalopex.createpowertrain.integration.sable.SableStructureBackend", true, loader)
+                .getDeclaredConstructor().newInstance();
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException error) {
+            throw new IllegalStateException("Create: Powertrain requires the Sable spatial API", error);
+        }
+    }
+
+    private static boolean hasSableBackendApi(ClassLoader loader) throws ReflectiveOperationException {
+        Class<?> sable = Class.forName("dev.ryanhcode.sable.Sable", false, loader);
+        Class<?> helper = sable.getField("HELPER").getType();
+        helper.getMethod("distanceSquaredWithSubLevels", Level.class, Position.class, Position.class);
+        helper.getMethod("projectOutOfSubLevel", Level.class, Vec3.class);
+        helper.getMethod("getContaining", BlockEntity.class);
+        helper.getMethod("getContaining", Level.class, Vec3i.class);
+
+        Class<?> subLevel = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel", false, loader);
+        subLevel.getMethod("getLevel");
+        subLevel.getMethod("logicalPose");
+        subLevel.getMethod("getUniqueId");
+
+        Class<?> serverSubLevel = Class.forName("dev.ryanhcode.sable.sublevel.ServerSubLevel", false, loader);
+        serverSubLevel.getMethod("getPlot");
+
+        Class<?> context = Class.forName(
+            "dev.ryanhcode.sable.api.schematic.SubLevelSchematicSerializationContext",
+            false,
+            loader);
+        context.getMethod("getCurrentContext");
+        context.getMethod("getType");
+        context.getMethod("getSetupTransform");
+        context.getMethod("getPlaceTransform");
+        context.getMethod("getBoundingBox");
+        context.getMethod("getMapping", UUID.class);
+        return true;
+    }
+
+    interface StructureBackend {
+        double distanceSquared(Level level, Vec3 first, Vec3 second);
+
+        Vec3 projectToWorld(Level level, Vec3 localPos);
+
+        Vec3 projectFromBlockToWorld(Level level, BlockPos reference, Vec3 localPos);
+
+        Level worldLevel(BlockEntity owner);
+
+        Level worldLevel(Level level, BlockPos pos);
+
+        BlockPos worldBlockPos(BlockEntity owner);
+
+        Vec3 transformPositionToWorld(BlockEntity owner, Vec3 localPos);
+
+        Vec3 transformNormalToWorld(BlockEntity owner, Vec3 localNormal);
+
+        Vec3 transformNormalToLocal(BlockEntity owner, Vec3 worldNormal);
+
+        Vec3 transformNormalToLocal(Level level, BlockPos pos, Vec3 worldNormal);
+
+        boolean isInSubLevel(BlockEntity owner);
+
+        boolean hasCollisionAtWorld(BlockEntity owner, Vec3 worldPosition);
+
+        Predicate<Vec3> collisionQuery(BlockEntity owner, AABB bounds);
+
+        List<SubLevelProjection> projectWorldPositionsToSubLevels(Level level, List<Vec3> worldPositions);
+
+        List<SubLevelProjection> projectWorldPositionsToIntersectingSubLevels(Level level, List<Vec3> worldPositions);
+
+        boolean hasFirePoleNearEntity(Level level, AABB entityBox, List<Vec3> worldSamples, double radiusSqr);
+
+        void notifyBlockChanged(BlockEntity owner);
+
+        void notifyBlockChanged(Level level, BlockPos pos, BlockState state);
+
+        @Nullable
+        UUID containingSubLevelId(BlockEntity owner);
+
+        @Nullable
+        UUID containingSubLevelId(Level level, BlockPos pos);
+
+        Vec3 partnerCenterInOwnerSpace(BlockEntity owner, BlockPos partnerPos);
+
+        boolean writeLinkedBlock(CompoundTag tag, String posTag, String subLevelTag,
+                                 BlockPos pos, @Nullable UUID subLevelId);
+
+        @Nullable
+        LinkedBlockRef readLinkedBlock(CompoundTag tag, String posTag, String subLevelTag);
+    }
+
+    public record LinkedBlockRef(@Nullable BlockPos pos, @Nullable UUID subLevelId) {
+        public static LinkedBlockRef empty() {
+            return new LinkedBlockRef(null, null);
+        }
+    }
+
+    public record SubLevelProjection(UUID id, Level level, List<Vec3> positions) {
+    }
+}

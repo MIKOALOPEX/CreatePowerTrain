@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "particle": "createpowertrain:block/extension_ladder"
+  },
+  "elements": []
+}

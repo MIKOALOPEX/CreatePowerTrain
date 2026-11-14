@@ -1,0 +1,142 @@
+{
+  "textures": {
+    "0": "create:block/copycat_base",
+    "particle": "create:block/copycat_base"
+  },
+  "elements": [
+    {
+      "from": [
+        6,
+        6,
+        2
+      ],
+      "to": [
+        8,
+        8,
+        14
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            14,
+            2,
+            16,
+            14
+          ],
+          "texture": "#0",
+          "rotation": 90
+        },
+        "down": {
+          "uv": [
+            14,
+            2,
+            16,
+            14
+          ],
+          "texture": "#0",
+          "rotation": 180
+        }
+      }
+    },
+    {
+      "from": [
+        8,
+        6,
+        2
+      ],
+      "to": [
+        10,
+        8,
+        14
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            14,
+            2,
+            16,
+            14
+          ],
+          "texture": "#0",
+          "rotation": 90
+        },
+        "down": {
+          "uv": [
+            14,
+            2,
+            16,
+            14
+          ],
+          "texture": "#0"
+        }
+      }
+    },
+    {
+      "from": [
+        8,
+        8,
+        2
+      ],
+      "to": [
+        10,
+        10,
+        14
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            14,
+            2,
+            16,
+            14
+          ],
+          "texture": "#0",
+          "rotation": 270
+        },
+        "up": {
+          "uv": [
+            14,
+            2,
+            16,
+            14
+          ],
+          "texture": "#0"
+        }
+      }
+    },
+    {
+      "from": [
+        6,
+        8,
+        2
+      ],
+      "to": [
+        8,
+        10,
+        14
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            14,
+            2,
+            16,
+            14
+          ],
+          "texture": "#0",
+          "rotation": 270
+        },
+        "up": {
+          "uv": [
+            14,
+            2,
+            16,
+            14
+          ],
+          "texture": "#0",
+          "rotation": 180
+        }
+      }
+    }
+  ]
+}

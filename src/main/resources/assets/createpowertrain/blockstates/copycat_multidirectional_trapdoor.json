@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "createpowertrain:block/copycat_door/vertical"
+    }
+  }
+}

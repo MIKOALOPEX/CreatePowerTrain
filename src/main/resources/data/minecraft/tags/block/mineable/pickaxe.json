@@ -1,0 +1,17 @@
+{
+  "replace": false,
+  "values": [
+    "createpowertrain:fluid_coupling",
+    "createpowertrain:copycat_multidirectional_trapdoor",
+    "createpowertrain:copycat_short_sliding_door",
+    "createpowertrain:copycat_short_folding_door",
+    "createpowertrain:rope_connector_master",
+    "createpowertrain:rope_latch",
+    "createpowertrain:rope_hook",
+    "createpowertrain:physical_fire_hose",
+    "createpowertrain:physical_fire_hose_4",
+    "createpowertrain:physical_fire_hose_6",
+    "createpowertrain:physical_fire_hose_8",
+    "createpowertrain:copycat_physical_hose"
+  ]
+}
