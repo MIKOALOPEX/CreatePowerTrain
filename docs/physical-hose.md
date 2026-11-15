@@ -12,12 +12,8 @@ The supplied copycat models retain their face UVs. Only each segment's central 1
 
 Emissive block materials render the filled part itself at the material's light level, and that brightness updates when the lit/unlit state toggles. Each endpoint also supplies native block light through NeoForge AuxiliaryLightManager, following Copycats+ 3.0.4 BlockEntityUtilsImpl and its multistate block light lookup. The source uses the maximum emission of the shared tube and that endpoint's independent port, updates on material changes/connection changes/client packets, and restores on chunk load. Native block entity removal clears the source. Render-only tube segments between endpoints do not add light sources; no cross-sublevel lighting is implemented.
 
-Validation: offline compilation, the full regression suite, texture/model reference checks, 12-pixel tiling checks, six-direction part targeting, material serialization and single-item refund accounting. These checks do not launch a game or open a world. In-game visual verification remains necessary.
-
 Breaking either endpoint or disconnecting the physical connection clears and refunds its shared tube material once. The surviving port keeps its own independently applied port material. Reconnecting starts with an unfilled tube unless a new tube material was explicitly applied. Ordinary hose appearance synchronization is unchanged.
 
-Curved connections now compute the total drawn length of each of their four surfaces before emitting subdivisions. Every subdivision samples its position within that shared layout, so tessellating the curve does not repeatedly restart the central crop. Regression checks compare actual emitted UVs at 1, 8 and 32 subdivisions, for both the base texture and applied materials, including a repeat boundary. This reproduces and prevents the repeated narrow-strip artifact without requiring connected textures.
-
-Tube orientation regression checks cover four sides, widths 4/6/8, four source-face UV rotations, atlas subregions, and matching straight/curved across coordinates. Unfilled copycat model UVs are unchanged.
+Curved connections now compute the total drawn length of each of their four surfaces before emitting subdivisions. Every subdivision samples its position within that shared layout, so tessellating the curve does not repeatedly restart the central crop.
 
 Native rope break particles are replaced only for Powertrain physical hose holders: ordinary hoses use their endpoint block material, filled copycat tubes use their applied block state, and empty copycat tubes use the copycat base. A transient snapshot retains the tube appearance when material refunds happen before native particle emission. New connections discard that snapshot.
