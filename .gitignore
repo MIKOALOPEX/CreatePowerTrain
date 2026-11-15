@@ -54,3 +54,6 @@ Thumbs.db
 
 __pycache__/
 *.pyc
+
+/docs/legacy-coexistence.md
+/docs/physical-hose.md
