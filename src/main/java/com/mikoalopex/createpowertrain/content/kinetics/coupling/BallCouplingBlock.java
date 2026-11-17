@@ -38,7 +38,7 @@ public class BallCouplingBlock extends KineticBlock implements IBE<BallCouplingB
     private final boolean top;
 
     public BallCouplingBlock(Properties properties, boolean top) {
-        super(properties);
+        super(properties.forceSolidOn());
         this.top = top;
         registerDefaultState(defaultBlockState().setValue(FACING, Direction.UP)
             .setValue(LENGTH, 0).setValue(CONNECTED, false).setValue(POWERED, false));

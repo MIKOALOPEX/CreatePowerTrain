@@ -53,7 +53,11 @@ public class FireHoseBlock extends WrenchableDirectionalBlock
 		Block.box(3, 0, 3, 13, 4, 13), Direction.UP);
 
 	public FireHoseBlock(Properties properties) {
-		super(properties);
+		// The 4 px port collider is too small for vanilla's calculateSolid() to mark
+		// this block solid. FlowingFluid.canHoldFluid() would then let water replace
+		// the endpoint and drop it. Force only the solid flag here: the collision
+		// shape, player collision, connections and removal all stay unchanged.
+		super(properties.forceSolidOn());
 		registerDefaultState(defaultBlockState()
 			.setValue(APPEARANCE, FireHoseEndpointModel.DEFAULT)
 			.setValue(CONNECTED, false));

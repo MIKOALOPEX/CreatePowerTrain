@@ -101,14 +101,19 @@ public class PhysicalHoseBlockEntity extends FireHoseBlockEntity {
 
     public PhysicalHoseBlockEntity(BlockPos pos, BlockState state) { super(PhysicalHoses.BLOCK_ENTITY.get(), pos, state); }
     public int width() { return getBlockState().getValue(PhysicalHoseBlock.SIZE).width; }
-    public void cycleSize() {
-        if (level == null || level.isClientSide) return;
+    /** Cycles 4/6/8 on both connected physical endpoints; returns false if it cannot apply. */
+    public boolean cycleSize() {
+        if (level == null || level.isClientSide) return false;
         var other = getPairedHose();
-        if (attached() && !(other instanceof PhysicalHoseBlockEntity)) return;
+        if (attached() && !(other instanceof PhysicalHoseBlockEntity)) return false;
         var size = getBlockState().getValue(PhysicalHoseBlock.SIZE).next();
         setSize(size);
         if (other instanceof PhysicalHoseBlockEntity hose) hose.setSize(size);
+        return true;
     }
+
+    /** Called after this endpoint rotated, so physics-backed rope ends can follow the new facing. */
+    public void portRotated() {}
 
     public void setSize(PhysicalHoseBlock.Size size) {
         if (level == null || level.isClientSide) return;

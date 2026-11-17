@@ -139,7 +139,8 @@ def regressionChecks = [
     checkCouplingBlueprint: 'com.mikoalopex.createpowertrain.integration.sableschematic.BallCouplingBlueprintMapperTest',
     checkCopycatDoors: 'com.mikoalopex.createpowertrain.content.blocks.copycat_door.DoorGeometryTest',
     checkFluidCouplingGeometry: 'com.mikoalopex.createpowertrain.content.fluids.coupling.FluidCouplingGeometryTest',
-    checkCouplingHingeFrame: 'com.mikoalopex.createpowertrain.integration.synaxis.CouplingHingeFrameTest'
+    checkCouplingHingeFrame: 'com.mikoalopex.createpowertrain.integration.synaxis.CouplingHingeFrameTest',
+    checkCreativeSectionLayout: 'com.mikoalopex.createpowertrain.client.CreativeSectionLayoutTest'
 ]
 regressionChecks.each { taskName, entryPoint ->
     tasks.register(taskName, JavaExec) {

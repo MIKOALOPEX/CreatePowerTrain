@@ -58,6 +58,32 @@ public final class SimulatedPhysicalHoseBlockEntity extends PhysicalHoseBlockEnt
             getFireHoseEndpointId(), false, getHoseAppearanceId());
     }
 
+    @Override public void portRotated() {
+        refreshAttachmentPoint();
+    }
+
+    /** Re-applies this endpoint's native rope attachment after its facing changed. */
+    public void refreshAttachmentPoint() {
+        if (level == null || level.isClientSide || holder == null) return;
+        if (!(level instanceof net.minecraft.server.level.ServerLevel serverLevel)) return;
+        var strand = holder.getAttachedStrand();
+        if (strand == null) return;
+        var point = holder.ownsRope() ? RopeAttachmentPoint.START : RopeAttachmentPoint.END;
+        var attachment = strand.getAttachment(point);
+        if (attachment == null) return;
+        strand.addAttachment(serverLevel, point, attachment);
+        if (!strand.isActive()) return;
+        var ownerHolder = holder;
+        if (!ownerHolder.ownsRope()) {
+            var other = getPairedHose();
+            ownerHolder = other instanceof SimulatedPhysicalHoseBlockEntity sim ? sim.holder : null;
+        }
+        if (ownerHolder != null && ownerHolder.ownsRope()) {
+            ownerHolder.getStrandPacketSink().sendPacket(ownerHolder.makeUpdatePacket());
+            strand.justSynced();
+        }
+    }
+
     @Override public Vec3 getAttachmentPoint(BlockPos pos, BlockState state) {
         return pos.getCenter().add(Vec3.atLowerCornerOf(state.getValue(FireHoseBlock.FACING).getNormal()).scale(-0.25));
     }

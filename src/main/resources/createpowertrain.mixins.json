@@ -19,6 +19,7 @@
   ],
   "client": [
     "client.PhysicalHoseInteractionMixin",
+    "client.RadialWrenchMenuGuardMixin",
     "client.SmartRopeDataPacketMixin",
     "client.SmartRopeShearsMixin",
     "client.SmartRopeStoppedPacketMixin",

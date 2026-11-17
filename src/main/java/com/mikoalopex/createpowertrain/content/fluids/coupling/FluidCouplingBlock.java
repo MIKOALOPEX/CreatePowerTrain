@@ -36,7 +36,7 @@ public final class FluidCouplingBlock extends WrenchableDirectionalBlock impleme
         return new ItemStack(FluidCouplings.ITEM.get());
     }
     public FluidCouplingBlock(Properties properties) {
-        super(properties);
+        super(properties.forceSolidOn());
         registerDefaultState(defaultBlockState().setValue(FACING, Direction.UP).setValue(POWERED, false));
     }
     @Override protected MapCodec<? extends WrenchableDirectionalBlock> codec() { return simpleCodec(FluidCouplingBlock::new); }

@@ -66,6 +66,9 @@ public final class HoseMaterialTest {
         checkBelt(registries);
         checkRoseQuartzLamp();
         checkNativeLighting();
+        // The regression task list is owned by another workstream; run the
+        // water-flow check from this already-registered hose task.
+        HoseWaterFlowProtectionTest.run();
         System.out.println("Copycat hose material persistence and accounting passed");
     }
     private static void checkRoseQuartzLamp() {

@@ -2,13 +2,16 @@ package com.mikoalopex.createpowertrain.content.blocks.physical_hose;
 
 import com.mikoalopex.createpowertrain.content.blocks.fire_hose.FireHoseBlock;
 import com.mikoalopex.createpowertrain.content.blocks.fire_hose.FireHoseBlockEntity;
+import com.mikoalopex.createpowertrain.content.items.hose_wrench.HoseWrenchSizeCyclable;
 import com.simibubi.create.api.contraption.ContraptionMovementSetting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -19,7 +22,7 @@ import net.minecraft.world.phys.BlockHitResult;
  * Physical hose endpoint with an adjustable cross-section.
  * The native rope simulation controls the connected hose body.
  */
-public class PhysicalHoseBlock extends FireHoseBlock {
+public class PhysicalHoseBlock extends FireHoseBlock implements HoseWrenchSizeCyclable {
     public enum Size implements net.minecraft.util.StringRepresentable {
         EIGHT(8), SIX(6), FOUR(4);
         public final int width;
@@ -41,10 +44,61 @@ public class PhysicalHoseBlock extends FireHoseBlock {
         builder.add(SIZE);
     }
 
-    @Override public net.minecraft.world.InteractionResult onWrenched(BlockState state, net.minecraft.world.item.context.UseOnContext context) {
-        if (!context.getLevel().isClientSide && context.getLevel().getBlockEntity(context.getClickedPos()) instanceof PhysicalHoseBlockEntity hose)
-            hose.cycleSize();
-        return net.minecraft.world.InteractionResult.SUCCESS;
+    /**
+     * Rotation-mode entry point shared by ordinary and copycat physical hoses.
+     * Ordinary endpoints use Create's native {@code IWrenchable} rotation.
+     * Copycat endpoints recover the shared tube material first, then this
+     * endpoint's port material, and rotate only once both slots are empty.
+     */
+    @Override public InteractionResult onWrenched(BlockState state, UseOnContext context) {
+        var player = context.getPlayer();
+        if (player == null || !player.mayBuild()) return InteractionResult.FAIL;
+        var level = context.getLevel();
+        var pos = context.getClickedPos();
+        BlockState current = level.getBlockState(pos);
+        if (!current.is(state.getBlock())) return InteractionResult.PASS;
+        if (!(level.getBlockEntity(pos) instanceof PhysicalHoseBlockEntity hose))
+            return super.onWrenched(current, context);
+        if (hose.isCopycat()) {
+            var owner = hose.bodyMaterialOwner();
+            if (owner == null) return InteractionResult.FAIL;
+            boolean bodyFilled = owner.bodyMaterial.filled();
+            if (bodyFilled || hose.portMaterial.filled()) {
+                if (!level.isClientSide) {
+                    if (bodyFilled) recoverMaterial(owner, owner.bodyMaterial, player);
+                    else recoverMaterial(hose, hose.portMaterial, player);
+                }
+                return InteractionResult.SUCCESS;
+            }
+        }
+        InteractionResult result = super.onWrenched(current, context);
+        // The native rotation has already replaced the state; let physics move its rope end.
+        if (result == InteractionResult.SUCCESS && !level.isClientSide && level.getBlockState(pos) != current)
+            hose.portRotated();
+        return result;
+    }
+
+    private static void recoverMaterial(PhysicalHoseBlockEntity owner, HoseMaterial slot, Player player) {
+        ItemStack refund = slot.clear();
+        if (!player.isCreative()) player.getInventory().placeItemBackInInventory(refund);
+        owner.notifyUpdate();
+    }
+
+    /**
+     * Thickness-mode entry point for the wrench GUI. Cycles the existing
+     * 4/6/8 sizes on both connected endpoints without rotating or removing
+     * either block. Call on the server thread; the client side only predicts.
+     */
+    @Override public InteractionResult cycleSize(BlockState state, UseOnContext context) {
+        var player = context.getPlayer();
+        if (player != null && !player.mayBuild()) return InteractionResult.FAIL;
+        var level = context.getLevel();
+        var pos = context.getClickedPos();
+        if (!level.getBlockState(pos).is(state.getBlock())) return InteractionResult.PASS;
+        if (level.isClientSide) return InteractionResult.SUCCESS;
+        if (!(level.getBlockEntity(pos) instanceof PhysicalHoseBlockEntity hose))
+            return InteractionResult.PASS;
+        return hose.cycleSize() ? InteractionResult.SUCCESS : InteractionResult.FAIL;
     }
 
     @Override public net.minecraft.world.phys.shapes.VoxelShape getShape(BlockState state, net.minecraft.world.level.BlockGetter level,

@@ -49,6 +49,7 @@ public class PartialModels {
 	}
 
 	public static void registerAdditional(ModelEvent.RegisterAdditional event) {
+        com.mikoalopex.createpowertrain.content.kinetics.rocker.RockerRenderer.models(event);
 		com.mikoalopex.createpowertrain.content.blocks.physical_hose.PhysicalHoseRenderer.models(event);
 		com.mikoalopex.createpowertrain.content.kinetics.coupling.BallCouplingRenderer.registerModels(event);
 		init();

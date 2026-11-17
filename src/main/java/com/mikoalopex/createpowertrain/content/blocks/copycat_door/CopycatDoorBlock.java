@@ -41,7 +41,7 @@ public abstract class CopycatDoorBlock extends CopycatBlock implements IHaveBigO
     public static final BooleanProperty VISIBLE = SlidingDoorBlock.VISIBLE;
 
     protected CopycatDoorBlock(Properties properties) {
-        super(properties);
+        super(properties.forceSolidOn());
         registerDefaultState(defaultBlockState().setValue(OPEN, false).setValue(POWERED, false).setValue(VISIBLE, true));
     }
 
