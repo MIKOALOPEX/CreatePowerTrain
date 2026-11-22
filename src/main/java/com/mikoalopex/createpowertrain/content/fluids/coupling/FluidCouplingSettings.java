@@ -19,7 +19,7 @@ public record FluidCouplingSettings(FluidCouplingInterfaces type, int height, in
     public Constraint constraint() {
         if (type.hose()) return new Constraint(2, 0, 0, false, false);
         return type.hardBoom()
-            ? new Constraint(1, FluidCouplingGeometry.MIN_PITCH, FluidCouplingGeometry.MAX_PITCH, false, true)
+            ? new Constraint(com.mikoalopex.createpowertrain.integration.synaxis.CouplingPhysics.FREE_YAW_LIMITED_PITCH, FluidCouplingGeometry.MIN_PITCH, FluidCouplingGeometry.MAX_PITCH, false, true)
             : new Constraint(freeMode, lower, upper, flipRange, false);
     }
 

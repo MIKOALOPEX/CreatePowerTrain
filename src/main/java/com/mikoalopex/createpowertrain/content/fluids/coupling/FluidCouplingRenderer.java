@@ -52,7 +52,9 @@ public final class FluidCouplingRenderer extends SmartBlockEntityRenderer<FluidC
                 pose.pushPose();
                 pose.translate(0.5, 0.5, 0.5); pose.mulPose(Axis.YP.rotationDegrees(be.gearPhase(partial))); pose.translate(-0.5, -0.5, -0.5);
                 draw("receptacle_gear" + power, pose, buffers, light, overlay); pose.popPose();
-                pose.translate(0.5, 11 / 16f, 0.5); pose.mulPose(Axis.XP.rotationDegrees(be.pitch(partial))); pose.translate(-0.5, -11 / 16f, -0.5);
+                pose.translate(0.5, 11 / 16f, 0.5);
+                pose.mulPose(new Quaternionf(receptacleRotation(be, partial)));
+                pose.translate(-0.5, -11 / 16f, -0.5);
                 draw("receptacle_pitch" + power, pose, buffers, light, overlay);
             }
             case BOOM_NOZZLE -> {
@@ -116,6 +118,26 @@ public final class FluidCouplingRenderer extends SmartBlockEntityRenderer<FluidC
             draw("ring", pose, buffers, light, overlay); pose.popPose();
         }
     }
+    private static org.joml.Quaterniond receptacleRotation(FluidCouplingBlockEntity be, float partial) {
+        if (be.active() && be.renderPartnerAnchor() != null && be.renderPartnerNormal() != null
+                && SableStructureClientCompat.renderTargetAvailable(be.renderPartnerBody())) {
+            var transform = SableStructureClientCompat.transformFireHoseTarget(be, be.renderPartnerBody(),
+                vector(be.renderPartnerAnchor()), vector(be.renderPartnerNormal()));
+            Direction facing = Direction.getNearest(be.renderPartnerNormal().x, be.renderPartnerNormal().y,
+                be.renderPartnerNormal().z);
+            // Use the same interpolated structure poses as the nozzle renderer.
+            var relative = new org.joml.Quaterniond(transform.ownerOrientation()).conjugate()
+                .mul(transform.partnerOrientation());
+            Vector3d nozzleX = relative.transform(vector(FluidCouplingGeometry.orient(new Vec3(1, 0, 0), facing)));
+            Vector3d nozzleNormal = relative.transform(vector(be.renderPartnerNormal()));
+            return FluidCouplingGeometry.dockedRotation(
+                vector(FluidCouplingGeometry.orient(new Vec3(1, 0, 0), be.facing())),
+                vector(Vec3.atLowerCornerOf(be.facing().getNormal())), nozzleX, nozzleNormal);
+        }
+        return new org.joml.Quaterniond().rotationY(Math.toRadians(be.yaw(partial)))
+            .rotateX(Math.toRadians(be.pitch(partial)));
+    }
+
     private static void draw(String model, PoseStack pose, MultiBufferSource buffers, int light, int overlay) {
         CachedBuffers.partial(MODELS.get(model), Blocks.AIR.defaultBlockState()).light(light).overlay(overlay)
             .renderInto(pose, buffers.getBuffer(RenderType.cutoutMipped()));

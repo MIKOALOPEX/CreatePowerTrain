@@ -20,6 +20,7 @@ import org.joml.Vector3dc;
 
 /** Adapts complete coupling behavior across the supported Synaxis welding APIs. */
 public final class CouplingPhysics {
+    public static final int FREE_YAW_LIMITED_PITCH = 3;
     /** Anchors use body model coordinates; normals and tangents use world coordinates. */
     public record Endpoint(ResourceKey<net.minecraft.world.level.Level> dimension, UUID body,
             Vector3dc anchor, Vector3dc normal, Vector3dc tangent) {}
@@ -140,7 +141,8 @@ public final class CouplingPhysics {
         private static final String WELD = "com.verr1.synaxis.compat.sableblueprint.weld.";
         final Method body, access, replace, remove, active, spec, orientation, ground, command, configuration;
         final Method hydrate, savedData, limitCommand;
-        final Constructor<?> bodyIdConstructor, definition, owner, key, contact;
+        final Constructor<?> bodyIdConstructor, definition, owner, key, contact, genericSpec;
+        final Object linearX, linearY, linearZ, angularZ;
         final Object[] modes;
 
         Api() throws ReflectiveOperationException {
@@ -172,6 +174,14 @@ public final class CouplingPhysics {
             ground = bodyIdClass.getMethod("isGround");
             access = physics.getMethod("constraints");
             Class<?> specClass = Class.forName(PHYSICS + "constraint.spec.ConstraintSpec");
+            Class<?> axisClass = Class.forName(PHYSICS + "constraint.ConstraintAxis");
+            linearX = axisClass.getField("LINEAR_X").get(null);
+            linearY = axisClass.getField("LINEAR_Y").get(null);
+            linearZ = axisClass.getField("LINEAR_Z").get(null);
+            angularZ = axisClass.getField("ANGULAR_Z").get(null);
+            genericSpec = Class.forName(PHYSICS + "constraint.spec.GenericConstraintSpec").getConstructor(
+                bodyIdClass, bodyIdClass, Vector3dc.class, Vector3dc.class,
+                Quaterniondc.class, Quaterniondc.class, java.util.Set.class);
             remove = accessClass.getMethod("remove", keyClass);
             hydrate = Class.forName(PHYSICS + "sable.SableConstraintAccess").getMethod("ensureHydrated", ServerLevel.class);
             savedData = Class.forName(PHYSICS + "constraint.graph.ConstraintMirrorSavedData").getMethod("getIfReady", ServerLevel.class);
@@ -201,7 +211,7 @@ public final class CouplingPhysics {
         Object connect(Request request, Connection previous) throws ReflectiveOperationException {
             Endpoint a = request.a(), b = request.b();
             int mode = request.mode();
-            if (mode < 0 || mode > 2 || !Double.isFinite(request.lowerDegrees())
+            if (mode < 0 || mode > FREE_YAW_LIMITED_PITCH || !Double.isFinite(request.lowerDegrees())
                     || !Double.isFinite(request.upperDegrees()) || request.lowerDegrees() < -180
                     || request.upperDegrees() > 180 || request.lowerDegrees() > request.upperDegrees()) return null;
             UUID id = request.id();
@@ -216,6 +226,7 @@ public final class CouplingPhysics {
             Vector3d anchorB = new Vector3d(b.anchor());
             Quaterniond qa = viewA == null ? new Quaterniond() : new Quaterniond((Quaterniondc) orientation.invoke(viewA));
             Quaterniond qb = viewB == null ? new Quaterniond() : new Quaterniond((Quaterniondc) orientation.invoke(viewB));
+            Vector3d localTangent = new Quaterniond(qa).conjugate().transform(new Vector3d(a.tangent()));
             if (previous != null) {
                 qa.set(previous.orientationA());
                 qb.set(previous.orientationB());
@@ -227,7 +238,7 @@ public final class CouplingPhysics {
                 : mode == 2 ? snappedFixedTarget(qb, otherAxis, axis, b.tangent(), a.tangent())
                 : new Quaterniond().rotationTo(otherAxis, new Vector3d(axis).negate()).mul(qb).normalize();
             Quaterniond hingeTarget = null;
-            if (mode == 1 && request.alignHingeTangents()) {
+            if ((mode == 1 || mode == FREE_YAW_LIMITED_PITCH) && request.alignHingeTangents()) {
                 // Docking hinges use the model's neutral pose, not the angle at first contact.
                 hingeTarget = previous != null && previous.hingeTarget() != null
                     ? new Quaterniond(previous.hingeTarget())
@@ -235,7 +246,7 @@ public final class CouplingPhysics {
                 targetB.set(hingeTarget);
             }
             Object limit = null;
-            if (mode == 1) {
+            if (mode == 1 || mode == FREE_YAW_LIMITED_PITCH) {
                 Class<?> arc = Class.forName(WELD + "WeldAngularLimit$ArcSelection");
                 Class<?> limitClass = Class.forName(WELD + "WeldAngularLimit");
                 double lower = Math.toRadians(request.lowerDegrees()), upper = Math.toRadians(request.upperDegrees());
@@ -252,19 +263,26 @@ public final class CouplingPhysics {
                 }
                 targetB = new Quaterniond().rotationAxis(offset, axis.x, axis.y, axis.z).mul(targetB).normalize();
             }
-            Quaterniond worldFrame = new Quaterniond().rotationTo(new Vector3d(1,0,0), axis);
+            Quaterniond worldFrame = mode == FREE_YAW_LIMITED_PITCH
+                ? yawPitchFrame(axis, new Quaterniond(qa).transform(localTangent))
+                : new Quaterniond().rotationTo(new Vector3d(1,0,0), axis);
             Quaterniond frameA = new Quaterniond(qa).conjugate().mul(worldFrame);
             Quaterniond frameB = new Quaterniond(targetB).conjugate().mul(worldFrame);
             // Ground represents the entire world: never disable all world collisions for a joint.
             boolean contacts = (boolean) ground.invoke(bodyA) || (boolean) ground.invoke(bodyB);
-            List<Object> values = new ArrayList<>(List.of(id, modes[mode], bodyA, bodyB, anchorA, anchorB,
+            // HINGE preserves the native pitch-limit configuration; the generic spec below supplies the two free axes.
+            List<Object> values = new ArrayList<>(List.of(id, modes[mode == FREE_YAW_LIMITED_PITCH ? 1 : mode], bodyA, bodyB, anchorA, anchorB,
                 new Quaterniond(qa).conjugate().mul(targetB), frameA, frameB,
                 new Quaterniond(qa).conjugate().transform(new Vector3d(axis)),
                 new Quaterniond(targetB).conjugate().transform(new Vector3d(axis)), contacts));
             values.add(Optional.ofNullable(limit));
             if (definition.getParameterCount() == 14) values.add(Optional.empty());
             Object weld = definition.newInstance(values.toArray());
-            Object specification = spec.invoke(null, weld);
+            // The independent yaw axis (Y) has no limit; pitch uses the native X limit.
+            Object specification = mode == FREE_YAW_LIMITED_PITCH
+                ? genericSpec.newInstance(bodyA, bodyB, anchorA, anchorB, frameA, frameB,
+                    java.util.Set.of(linearX, linearY, linearZ, angularZ))
+                : spec.invoke(null, weld);
             ResourceLocation name = request.feature();
             Object constraintKey = constraintKey(a.dimension(), name, id);
             Object constraints = access.invoke(null);
@@ -302,6 +320,15 @@ public final class CouplingPhysics {
                 ResourceLocation.fromNamespaceAndPath(CreatePowertrain.MODID, id.toString())), feature);
         }
 
+    }
+
+    /** X is the pitch axis; Y follows the receptacle mounting normal. */
+    static Quaterniond yawPitchFrame(Vector3dc pitchAxis, Vector3dc mountNormal) {
+        Vector3d x = new Vector3d(pitchAxis).normalize();
+        Vector3d y = new Vector3d(mountNormal);
+        projectOntoPlane(y, x);
+        Vector3d z = new Vector3d(x).cross(y).normalize();
+        return new Quaterniond().setFromNormalized(new org.joml.Matrix3d(x, y, z));
     }
 
     static Quaterniond alignedHingeTarget(Quaterniondc movingOrientation, Vector3dc movingNormal,

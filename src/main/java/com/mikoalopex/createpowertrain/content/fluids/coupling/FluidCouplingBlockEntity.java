@@ -38,6 +38,7 @@ public class FluidCouplingBlockEntity extends FireHoseBlockEntity implements Men
     private boolean powered, connected, established, restoring, cleaned;
     private int pendingTicks, recoveryTicks, searchTicks, nextSearch;
     private long cooldownUntil;
+    private float yaw, previousYaw;
     private float pitch, previousPitch, flow, gearPhase, previousGearPhase;
     private float deployment, previousDeployment;
     private int transferred;
@@ -54,13 +55,32 @@ public class FluidCouplingBlockEntity extends FireHoseBlockEntity implements Men
     public Direction facing() { return getBlockState().getValue(FluidCouplingBlock.FACING); }
     public Level worldLevel() { return SableStructureCompat.worldLevel(this); }
     public Vec3 localAnchor() { return Vec3.atLowerCornerOf(worldPosition).add(FluidCouplingGeometry.modelPoint(
-        settings.type().contact(settings.height(), pitch), facing())); }
+        settings.type() == FluidCouplingInterfaces.RECEPTACLE
+            ? receptacleContact()
+            : settings.type().contact(settings.height(), pitch), facing())); }
+    private Vec3 receptacleContact() {
+        var other = connected && level != null && !level.isClientSide ? partner() : null;
+        if (other == null) return FluidCouplingGeometry.receptacleContact(pitch, yaw);
+        Vec3 mountX = SableStructureCompat.transformNormalToWorld(this,
+            FluidCouplingGeometry.orient(new Vec3(1, 0, 0), facing()));
+        Vec3 nozzleX = SableStructureCompat.transformNormalToWorld(other,
+            FluidCouplingGeometry.orient(new Vec3(1, 0, 0), other.facing()));
+        var rotation = FluidCouplingGeometry.dockedRotation(vector(mountX), vector(worldNormal()),
+            vector(nozzleX), vector(other.worldNormal()));
+        return FluidCouplingGeometry.receptacleContact(rotation);
+    }
+
+    private static org.joml.Vector3d vector(Vec3 value) {
+        return new org.joml.Vector3d(value.x, value.y, value.z);
+    }
+
     public Vec3 worldAnchor() { return SableStructureCompat.transformPositionToWorld(this, localAnchor()); }
     public Vec3 worldNormal() { return SableStructureCompat.transformNormalToWorld(this, Vec3.atLowerCornerOf(facing().getNormal())).normalize(); }
     public Vec3 renderPartnerAnchor() { return renderPartnerAnchor; }
     public Vec3 renderPartnerNormal() { return renderPartnerNormal; }
     public UUID renderPartnerBody() { return renderPartnerBody; }
     public float pitch(float partial) { return previousPitch + (pitch - previousPitch) * partial; }
+    public float yaw(float partial) { return previousYaw + (float) FluidCouplingGeometry.wrapYaw(yaw - previousYaw) * partial; }
     public float gearPhase(float partial) { return previousGearPhase + (gearPhase - previousGearPhase) * partial; }
     public float deployment(float partial) { return previousDeployment + (deployment - previousDeployment) * Math.clamp(partial, 0, 1); }
     public int status() { return connected ? 1 : partner != null ? 3 : powered ? 2 : 0; }
@@ -114,6 +134,7 @@ public class FluidCouplingBlockEntity extends FireHoseBlockEntity implements Men
     @Override public void tick() {
         if (level == null) return;
         previousPitch = pitch;
+        previousYaw = yaw;
         previousGearPhase = gearPhase;
         previousDeployment = deployment;
         if (settings.type() == FluidCouplingInterfaces.HOSE_DROGUE) {
@@ -176,7 +197,8 @@ public class FluidCouplingBlockEntity extends FireHoseBlockEntity implements Men
                 pitchTarget = candidate.endpoint;
             // Hard-boom pivots can be 4px farther apart than the visual contact points.
             var session = FluidCouplingIndex.inside(worldAnchor(), candidate.worldAnchor(), 0.75) ? null
-                : CouplingAlignment.begin(physicsEndpoint(), candidate.physicsEndpoint(), settings.constraint().mode(),
+                : CouplingAlignment.begin(physicsEndpoint(), candidate.physicsEndpoint(),
+                    settings.type().hardBoom() ? 1 : settings.constraint().mode(),
                     settings.type() == FluidCouplingInterfaces.FREE, settings.type().locksConstraint() ? 3.25 : 1.5);
             if (session == null && !FluidCouplingIndex.inside(worldAnchor(), candidate.worldAnchor(), 0.75)) continue;
             pair = candidate.pair = UUID.randomUUID(); partner = candidate.endpoint; candidate.partner = endpoint;
@@ -242,7 +264,9 @@ public class FluidCouplingBlockEntity extends FireHoseBlockEntity implements Men
     }
 
     private void updatePitch(FluidCouplingBlockEntity other) {
-        double target = 0;
+        // Connected sockets follow the complete nozzle pose, without an aiming delay.
+        if (connected && other != null) return;
+        double target = 0, targetYaw = 0;
         if (settings.type() == FluidCouplingInterfaces.RECEPTACLE && other != null) {
             Vec3 pivot = Vec3.atLowerCornerOf(worldPosition).add(
                 FluidCouplingGeometry.modelPoint(FluidCouplingGeometry.PITCH_PIVOT, facing()));
@@ -250,10 +274,17 @@ public class FluidCouplingBlockEntity extends FireHoseBlockEntity implements Men
             Vec3 x = SableStructureCompat.transformNormalToWorld(this, FluidCouplingGeometry.orient(new Vec3(1, 0, 0), facing()));
             Vec3 y = worldNormal();
             Vec3 z = SableStructureCompat.transformNormalToWorld(this, FluidCouplingGeometry.orient(new Vec3(0, 0, 1), facing()));
-            target = FluidCouplingGeometry.pitchToward(new Vec3(direction.dot(x), direction.dot(y), direction.dot(z)));
+            Vec3 localDirection = new Vec3(direction.dot(x), direction.dot(y), direction.dot(z));
+            var aim = FluidCouplingGeometry.aimToward(localDirection, yaw);
+            targetYaw = aim.yaw();
+            target = aim.pitch();
         }
         float next = (float) (pitch + (target - pitch) * 0.35);
-        if (Math.abs(next - pitch) > 0.01) { pitch = next; if (level.getGameTime() % 2 == 0) notifyUpdate(); }
+        float nextYaw = (float) FluidCouplingGeometry.wrapYaw(yaw + FluidCouplingGeometry.wrapYaw(targetYaw - yaw) * 0.35);
+        if (Math.abs(next - pitch) > 0.01 || Math.abs(FluidCouplingGeometry.wrapYaw(nextYaw - yaw)) > 0.01) {
+            pitch = next; yaw = nextYaw;
+            if (level.getGameTime() % 2 == 0) notifyUpdate();
+        }
     }
 
     private void releaseConstraint() {
@@ -275,10 +306,16 @@ public class FluidCouplingBlockEntity extends FireHoseBlockEntity implements Men
             other.releaseConstraint();
             other.partner = other.pair = null; other.reference = null; other.connected = other.established = other.restoring = false;
             other.pitchTarget = null;
+            other.resetMovingHead();
             other.pendingTicks = 0; other.networkChanged(); other.wakeSearch();
         } else if (pair != null) saved().invalidate(pair);
         partner = pair = null; reference = null; connected = established = restoring = false; pendingTicks = 0;
+        resetMovingHead();
         networkChanged();
+    }
+
+    private void resetMovingHead() {
+        pitch = previousPitch = yaw = previousYaw = 0;
     }
 
     public void disconnectFromGui() {
@@ -295,7 +332,7 @@ public class FluidCouplingBlockEntity extends FireHoseBlockEntity implements Men
             ? settings.withInterface(type)
             : new FluidCouplingSettings(type, settings.height(), mode, lower, upper, flip);
         if (settings.equals(next)) return;
-        disconnect(); settings = next; pitch = previousPitch = 0; cooldownUntil = 0; nextSearch = 0;
+        disconnect(); settings = next; pitch = previousPitch = yaw = previousYaw = 0; cooldownUntil = 0; nextSearch = 0;
         deployment = previousDeployment = 0;
         notifyUpdate();
     }
@@ -357,7 +394,7 @@ public class FluidCouplingBlockEntity extends FireHoseBlockEntity implements Men
         tag.putBoolean("CouplingAligning", alignment != null || partner != null && !connected && reference == null);
         tag.putBoolean("CouplingPowered", powered);
         tag.putLong("CouplingGuiPairCooldown", cooldownUntil);
-        tag.putFloat("Pitch", pitch); tag.putFloat("Flow", flow);
+        tag.putFloat("Yaw", yaw); tag.putFloat("Pitch", pitch); tag.putFloat("Flow", flow);
         tag.putFloat("HoseDeployment", deployment);
         if (!packet && pair != null) tag.put("CouplingReference", CouplingPhysics.saveReference(constraint != null ? constraint : reference));
         var other = partner();
@@ -382,7 +419,10 @@ public class FluidCouplingBlockEntity extends FireHoseBlockEntity implements Men
         connected = packet && tag.getBoolean("FluidConnected");
         cooldownUntil = tag.getLong("CouplingGuiPairCooldown");
         previousPitch = pitch;
+        previousYaw = yaw;
         pitch = (float) FluidCouplingGeometry.clampPitch(tag.getFloat("Pitch"));
+        yaw = (float) FluidCouplingGeometry.wrapYaw(tag.getFloat("Yaw"));
+        if (!packet) { previousPitch = pitch; previousYaw = yaw; }
         flow = Float.isFinite(tag.getFloat("Flow")) ? Math.max(0, tag.getFloat("Flow")) : 0;
         deployment = previousDeployment = HoseDeployment.clamp(tag.getFloat("HoseDeployment"));
         if (!packet) {

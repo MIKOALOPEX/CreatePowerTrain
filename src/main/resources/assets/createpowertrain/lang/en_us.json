@@ -58,7 +58,7 @@
   "fluid_coupling.interface.2": "Boom Nozzle",
   "fluid_coupling.interface.3": "Hose Drogue",
   "fluid_coupling.interface.4": "Hose Probe",
-  "fluid_coupling.pitch_joint": "Limited Pitch",
+  "fluid_coupling.pitch_joint": "Yaw / Pitch",
   "block.createpowertrain.rocker": "Rocker",
   "rocker.ratio": "Ratio",
   "rocker.mode.0": "Rotary Mode",

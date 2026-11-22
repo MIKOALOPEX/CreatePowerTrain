@@ -58,7 +58,7 @@
   "fluid_coupling.interface.2": "硬杆输油口",
   "fluid_coupling.interface.3": "软管输油口",
   "fluid_coupling.interface.4": "软管受油口",
-  "fluid_coupling.pitch_joint": "Pitch 旋转限位",
+  "fluid_coupling.pitch_joint": "偏航 / 俯仰",
   "block.createpowertrain.rocker": "摇杆",
   "rocker.ratio": "倍率",
   "rocker.mode.0": "旋转模式",

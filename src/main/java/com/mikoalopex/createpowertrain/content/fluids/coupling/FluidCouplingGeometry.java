@@ -5,9 +5,9 @@ import net.minecraft.world.phys.Vec3;
 
 /** Model-space docking points, separate from the fixed pivots used by physical joints. */
 public final class FluidCouplingGeometry {
-    // The -Z rim limits tilt to 45 degrees; the +Z opening permits 67.5 degrees.
+    // Both pitch directions use the same limit; yaw remains unrestricted.
     public static final double MIN_PITCH = -45;
-    public static final double MAX_PITCH = 67.5;
+    public static final double MAX_PITCH = 45;
     public static final double INSERTION_PIXELS = 7;
     public static final double NOZZLE_TIP_Z = 23.475;
     public static final Vec3 PITCH_PIVOT = new Vec3(8, 11, 8);
@@ -29,6 +29,61 @@ public final class FluidCouplingGeometry {
         Vec3 p = point.subtract(PITCH_PIVOT);
         double c = Math.cos(radians), s = Math.sin(radians);
         return PITCH_PIVOT.add(p.x, c * p.y - s * p.z, s * p.y + c * p.z);
+    }
+
+    /** Resolves the complete socket pose from the nozzle frame, including axial rotation. */
+    public static org.joml.Quaterniond dockedRotation(org.joml.Vector3dc mountX,
+            org.joml.Vector3dc mountNormal, org.joml.Vector3dc nozzleX, org.joml.Vector3dc nozzleNormal) {
+        var mount = com.mikoalopex.createpowertrain.content.kinetics.coupling.CouplingJointKinematics.frame(mountX, mountNormal);
+        var socket = com.mikoalopex.createpowertrain.content.kinetics.coupling.CouplingJointKinematics.frame(
+            nozzleX, new org.joml.Vector3d(nozzleNormal).negate());
+        return mount.conjugate().mul(socket).normalize();
+    }
+
+    public static Vec3 receptacleContact(org.joml.Quaterniondc rotation) {
+        org.joml.Vector3d offset = rotation.transform(new org.joml.Vector3d(0,
+            RECEPTACLE_MOUTH.y - INSERTION_PIXELS - PITCH_PIVOT.y, 0));
+        return PITCH_PIVOT.add(offset.x, offset.y, offset.z);
+    }
+
+    public static double wrapYaw(double degrees) {
+        return Double.isFinite(degrees) ? ((degrees + 180) % 360 + 360) % 360 - 180 : 0;
+    }
+
+    public static Vec3 yawPitch(Vec3 point, double pitch, double yaw) {
+        Vec3 p = pitch(point, pitch).subtract(PITCH_PIVOT);
+        double angle = Math.toRadians(wrapYaw(yaw));
+        double c = Math.cos(angle), s = Math.sin(angle);
+        return PITCH_PIVOT.add(c * p.x + s * p.z, p.y, -s * p.x + c * p.z);
+    }
+
+    public static Vec3 receptacleContact(double pitch, double yaw) {
+        return yawPitch(RECEPTACLE_MOUTH.add(0, -INSERTION_PIXELS, 0), pitch, yaw);
+    }
+
+    /** Heading around the mounting normal; preserve it when the target is on that normal. */
+    public static double yawToward(Vec3 target, double fallback) {
+        return Double.isFinite(target.x) && Double.isFinite(target.z)
+            && target.x * target.x + target.z * target.z > 1e-12
+            ? wrapYaw(Math.toDegrees(Math.atan2(target.x, target.z))) : wrapYaw(fallback);
+    }
+
+    public record Aim(double yaw, double pitch) {}
+
+    /** Chooses the equivalent signed pitch that keeps heading closest to the previous heading. */
+    public static Aim aimToward(Vec3 target, double previousYaw) {
+        double heading = yawToward(target, previousYaw);
+        double tilt = tiltToward(target);
+        if (Math.abs(wrapYaw(heading - previousYaw)) > 90) {
+            heading = wrapYaw(heading + 180);
+            tilt = -tilt;
+        }
+        return new Aim(heading, tilt);
+    }
+
+    public static double tiltToward(Vec3 target) {
+        if (!Double.isFinite(target.lengthSqr()) || target.lengthSqr() < 1e-12) return 0;
+        return clampPitch(Math.toDegrees(Math.atan2(Math.hypot(target.x, target.z), target.y)));
     }
 
     public static Vec3 receptacleContact(double degrees) {

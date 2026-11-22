@@ -102,8 +102,8 @@ public class BallCouplingScreen extends AbstractContainerScreen<BallCouplingMenu
         flipButton.visible = selectedMode == 1 && !fixedInterface();
         if (hardBoom()) {
             g.drawCenteredString(font, Component.literal(
-                com.mikoalopex.createpowertrain.content.fluids.coupling.FluidCouplingGeometry.MIN_PITCH + "掳 / +"
-                    + com.mikoalopex.createpowertrain.content.fluids.coupling.FluidCouplingGeometry.MAX_PITCH + "掳"),
+                com.mikoalopex.createpowertrain.content.fluids.coupling.FluidCouplingGeometry.MIN_PITCH + "\u00b0 / +"
+                    + com.mikoalopex.createpowertrain.content.fluids.coupling.FluidCouplingGeometry.MAX_PITCH + "\u00b0"),
                 leftPos + 96, topPos + 120, 0xffffff);
         }
         if (selectedMode == 1 && !fixedInterface()) {

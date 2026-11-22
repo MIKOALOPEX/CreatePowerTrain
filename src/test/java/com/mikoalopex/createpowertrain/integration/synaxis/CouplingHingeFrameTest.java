@@ -18,6 +18,9 @@ public final class CouplingHingeFrameTest {
             Vector3d fixedTangent = fixed.transform(new Vector3d(0, 1, 0));
             Vector3d movingAxis = moving.transform(new Vector3d(-1, 0, 0));
             Vector3d movingTangent = moving.transform(new Vector3d(0, 1, 0));
+            Quaterniond frame = CouplingPhysics.yawPitchFrame(fixedAxis, fixedTangent);
+            check(frame.transform(new Vector3d(1, 0, 0)).distance(fixedAxis) < 1e-8, "Independent pitch axis");
+            check(frame.transform(new Vector3d(0, 1, 0)).distance(fixedTangent) < 1e-8, "Independent yaw axis");
             Quaterniond target = CouplingPhysics.alignedHingeTarget(moving, movingAxis,
                 fixedAxis, movingTangent, fixedTangent);
             check(target.transform(new Vector3d(-1, 0, 0)).distance(new Vector3d(fixedAxis).negate()) < 1e-8, "Pitch axis");
@@ -35,7 +38,7 @@ public final class CouplingHingeFrameTest {
         check(CouplingPhysics.saveReference(CouplingPhysics.restoreReference(legacy)).equals(legacy), "Model zero survives reload");
         legacy.putDouble("HingeW", Double.NaN);
         check(CouplingPhysics.restoreReference(legacy) == null, "Reject invalid saved frame");
-        System.out.println("CouplingHingeFrame: 2004 orientation and persistence checks passed");
+        System.out.println("CouplingHingeFrame: 4004 orientation and persistence checks passed");
     }
 
     private static void check(boolean value, String message) {
