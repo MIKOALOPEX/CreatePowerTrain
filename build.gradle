@@ -127,6 +127,7 @@ sourceSets.test {
 }
 
 def regressionChecks = [
+    checkLegacyNotice: 'com.mikoalopex.createpowertrain.client.notice.LegacyNoticeTest',
     checkCopycatHoseTexture: 'com.mikoalopex.createpowertrain.content.blocks.physical_hose.CopycatHoseTextureTest',
     checkHoseMaterials: 'com.mikoalopex.createpowertrain.content.blocks.physical_hose.HoseMaterialTest',
     checkLegacyCoexistence: 'com.mikoalopex.createpowertrain.compatibility.LegacyCoexistenceTest',
